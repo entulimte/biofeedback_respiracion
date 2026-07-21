@@ -130,31 +130,31 @@
       opacity: 0.7;
     }
 
-    /* Métricas */
+    /* Métricas en 3 columnas (Actual, Media, Moda) */
     .metrics {
       display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 6px;
       margin-top: 10px;
     }
     .metric-box {
       background: rgba(255,255,255,0.05);
-      padding: 8px;
+      padding: 8px 4px;
       border-radius: 8px;
     }
-    .metric-val { font-size: 1.5rem; font-weight: bold; color: var(--accent1); }
-    .metric-label { font-size: 0.75rem; opacity: 0.8; }
+    .metric-val { font-size: 1.3rem; font-weight: bold; color: var(--accent1); }
+    .metric-label { font-size: 0.7rem; opacity: 0.8; }
 
     /* Tabla Comparativa */
     table {
       width: 100%;
       border-collapse: collapse;
       margin-top: 10px;
-      font-size: 0.85rem;
+      font-size: 0.8rem;
     }
     th, td {
       border: 1px solid #334155;
-      padding: 8px 4px;
+      padding: 6px 2px;
       text-align: center;
     }
     th { background: rgba(255,255,255,0.05); color: var(--accent1); }
@@ -204,14 +204,19 @@
       <canvas id="ecgCanvas" width="350" height="120"></canvas>
     </div>
 
+    <!-- Muestra Actual, Media y Moda -->
     <div class="metrics">
       <div class="metric-box">
         <div id="bpmVal" class="metric-val">--</div>
-        <div class="metric-label">BPM Actual</div>
+        <div class="metric-label">Actual</div>
       </div>
       <div class="metric-box">
         <div id="avgVal" class="metric-val">--</div>
-        <div class="metric-label">Promedio Sesión</div>
+        <div class="metric-label">Media</div>
+      </div>
+      <div class="metric-box">
+        <div id="modeVal" class="metric-val">--</div>
+        <div class="metric-label">Moda</div>
       </div>
     </div>
 
@@ -255,6 +260,7 @@
   let rawSignals = [];
   let currentBpmHistory = [];
   let lastBeat = Date.now();
+  let lastValidBpm = null;
 
   let sessionsData = []; 
 
@@ -270,12 +276,12 @@
   const pacerText = document.getElementById('pacerText');
   const bpmVal = document.getElementById('bpmVal');
   const avgVal = document.getElementById('avgVal');
+  const modeVal = document.getElementById('modeVal');
   const startBtn = document.getElementById('startBtn');
   const timerDisplay = document.getElementById('timerDisplay');
   const resultsCard = document.getElementById('resultsCard');
   const tableContainer = document.getElementById('tableContainer');
 
-  // Función para reproducir tono de fin
   function playFinishSound() {
     try {
       const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -283,17 +289,34 @@
       const gain = audioCtx.createGain();
       
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(880, audioCtx.currentTime); // Tono La (A5)
+      osc.frequency.setValueAtTime(880, audioCtx.currentTime);
       gain.gain.setValueAtTime(0.5, audioCtx.currentTime);
       
       osc.connect(gain);
       gain.connect(audioCtx.destination);
       
       osc.start();
-      osc.stop(audioCtx.currentTime + 0.8); // Duración 800ms
+      osc.stop(audioCtx.currentTime + 0.8);
     } catch(e) {
       console.log("Audio Context no permitido:", e);
     }
+  }
+
+  // Función para calcular la Moda
+  function calculateMode(arr) {
+    if (arr.length === 0) return "--";
+    const freqMap = {};
+    let maxCount = 0;
+    let mode = arr[0];
+
+    for (const val of arr) {
+      freqMap[val] = (freqMap[val] || 0) + 1;
+      if (freqMap[val] > maxCount) {
+        maxCount = freqMap[val];
+        mode = val;
+      }
+    }
+    return mode;
   }
 
   startBtn.addEventListener('click', async () => {
@@ -309,6 +332,7 @@
         active = true;
         currentBpmHistory = [];
         rawSignals = [];
+        lastValidBpm = null;
         
         startBtn.textContent = "Detener Ejercicio";
         startBtn.style.background = "#ef4444";
@@ -344,7 +368,6 @@
     timerDisplay.textContent = `${m < 10 ? '0':''}${m}:${s < 10 ? '0':''}${s}`;
   }
 
-  // ALGORITMO ORIGINAL RESTAURADO EXACTO
   function processFrame() {
     if (!active) return;
 
@@ -362,13 +385,30 @@
     let mean = rawSignals.reduce((a,b)=>a+b,0) / rawSignals.length;
     let now = Date.now();
 
-    if (avg > mean + 1 && (now - lastBeat) > 400) {
+    if (avg > mean + 1.2 && (now - lastBeat) > 450) {
       let bpm = Math.round(60000 / (now - lastBeat));
-      if (bpm >= 40 && bpm <= 180) {
-        bpmVal.textContent = bpm;
-        currentBpmHistory.push(bpm);
-        let sessionAvg = Math.round(currentBpmHistory.reduce((a,b)=>a+b,0) / currentBpmHistory.length);
-        avgVal.textContent = sessionAvg;
+      
+      if (bpm >= 45 && bpm <= 140) {
+        let isValid = false;
+        if (lastValidBpm === null) {
+          isValid = true;
+        } else if (Math.abs(bpm - lastValidBpm) <= 28) {
+          isValid = true;
+        }
+
+        if (isValid) {
+          bpmVal.textContent = bpm;
+          currentBpmHistory.push(bpm);
+          lastValidBpm = bpm;
+
+          // Cálculo de Media
+          let sessionAvg = Math.round(currentBpmHistory.reduce((a,b)=>a+b,0) / currentBpmHistory.length);
+          avgVal.textContent = sessionAvg;
+
+          // Cálculo de Moda
+          let sessionMode = calculateMode(currentBpmHistory);
+          modeVal.textContent = sessionMode;
+        }
       }
       lastBeat = now;
     }
@@ -468,23 +508,24 @@
       ? Math.round(currentBpmHistory.reduce((a,b)=>a+b,0)/currentBpmHistory.length)
       : "--";
 
+    let finalMode = calculateMode(currentBpmHistory);
+
     let selectedRpmText = rpmSelect.options[rpmSelect.selectedIndex].text;
 
     sessionsData.push({
       num: sessionsData.length + 1,
       time: timeSelect.value + " min",
       rpm: selectedRpmText,
-      avgBpm: finalAvg
+      avgBpm: finalAvg,
+      modeBpm: finalMode
     });
 
     renderResultsTable();
 
     if (completed) {
-      // Vibración
       if ("vibrate" in navigator) {
         navigator.vibrate([200, 100, 200, 100, 400]);
       }
-      // Beep de sonido
       playFinishSound();
       
       setTimeout(() => {
@@ -502,7 +543,8 @@
             <th>Intento</th>
             <th>Tiempo</th>
             <th>Ritmo</th>
-            <th>Promedio BPM</th>
+            <th>Media</th>
+            <th>Moda</th>
           </tr>
         </thead>
         <tbody>
@@ -516,7 +558,8 @@
           <td style="color:${color}; font-weight:bold;">#${s.num} ${isFirst ? '(Azul)' : '(Naranja)'}</td>
           <td>${s.time}</td>
           <td>${s.rpm}</td>
-          <td style="color:${color}; font-weight:bold; font-size:1.1rem;">${s.avgBpm} BPM</td>
+          <td style="color:${color}; font-weight:bold;">${s.avgBpm} BPM</td>
+          <td style="color:${color}; font-weight:bold;">${s.modeBpm} BPM</td>
         </tr>
       `;
     });
