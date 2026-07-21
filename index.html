@@ -127,7 +127,7 @@
       right: 5px;
       font-size: 0.65rem;
       font-weight: bold;
-      opacity: 0.65;
+      opacity: 0.7;
     }
 
     /* Métricas */
@@ -198,9 +198,9 @@
 
     <!-- Gráfica EEG con 3 Zonas de Color -->
     <div class="graph-container">
-      <span class="zone-label" style="top: 2px; color: #ef4444;">>100 BPM</span>
-      <span class="zone-label" style="top: 40px; color: #f59e0b;">70-100 BPM</span>
-      <span class="zone-label" style="bottom: 2px; color: #10b981;"><70 BPM</span>
+      <span class="zone-label" style="top: 2px; color: #ef4444;">>100 BPM (Roja)</span>
+      <span class="zone-label" style="top: 40px; color: #f59e0b;">70-100 BPM (Amarilla)</span>
+      <span class="zone-label" style="bottom: 2px; color: #10b981;"><70 BPM (Verde)</span>
       <canvas id="ecgCanvas" width="350" height="120"></canvas>
     </div>
 
@@ -253,6 +253,7 @@
   let animPacer = null;
   
   let rawSignals = [];
+  let smoothedSignals = [];
   let currentBpmHistory = [];
   let lastBeat = Date.now();
 
@@ -288,6 +289,7 @@
         active = true;
         currentBpmHistory = [];
         rawSignals = [];
+        smoothedSignals = [];
         
         startBtn.textContent = "Detener Ejercicio";
         startBtn.style.background = "#ef4444";
@@ -323,7 +325,7 @@
     timerDisplay.textContent = `${m < 10 ? '0':''}${m}:${s < 10 ? '0':''}${s}`;
   }
 
-  // PROCESAMIENTO CON LA SENSIBILIDAD ORIGINAL RESTAURADA
+  // PROCESAMIENTO ESTABILIZADO Y FILTRADO
   function processFrame() {
     if (!active) return;
 
@@ -336,15 +338,21 @@
     let avg = sum / (frame.data.length / 4);
 
     rawSignals.push(avg);
-    if (rawSignals.length > 30) rawSignals.shift(); // Muestra corta original (30)
+    if (rawSignals.length > 50) rawSignals.shift();
 
-    let mean = rawSignals.reduce((a,b)=>a+b,0) / rawSignals.length;
+    // Filtro de suavizado exponencial
+    let lastSmooth = smoothedSignals.length > 0 ? smoothedSignals[smoothedSignals.length - 1] : avg;
+    let smoothedVal = lastSmooth + 0.25 * (avg - lastSmooth);
+    smoothedSignals.push(smoothedVal);
+    if (smoothedSignals.length > 50) smoothedSignals.shift();
+
+    let mean = smoothedSignals.reduce((a,b)=>a+b,0) / smoothedSignals.length;
     let now = Date.now();
 
-    // Sensibilidad calibrada original (+0.4) y tiempo refractario de 380ms
-    if (avg > mean + 0.4 && (now - lastBeat) > 380) {
+    // Umbral de detección con tiempo refractario seguro (500ms = Máximo 120 BPM)
+    if (smoothedVal > mean + 0.6 && (now - lastBeat) > 500) {
       let bpm = Math.round(60000 / (now - lastBeat));
-      if (bpm >= 40 && bpm <= 180) {
+      if (bpm >= 45 && bpm <= 140) {
         bpmVal.textContent = bpm;
         currentBpmHistory.push(bpm);
         let sessionAvg = Math.round(currentBpmHistory.reduce((a,b)=>a+b,0) / currentBpmHistory.length);
@@ -379,7 +387,7 @@
     ctx.moveTo(0, h * 0.67); ctx.lineTo(w, h * 0.67);
     ctx.stroke();
 
-    if (rawSignals.length < 2) return;
+    if (smoothedSignals.length < 2) return;
 
     const currentSessionNum = sessionsData.length + 1;
     const lineColor = (currentSessionNum % 2 !== 0) ? "#38bdf8" : "#f59e0b";
@@ -388,13 +396,13 @@
     ctx.lineWidth = 2.5;
     ctx.beginPath();
 
-    let step = w / 30;
-    let min = Math.min(...rawSignals);
-    let max = Math.max(...rawSignals);
+    let step = w / 50;
+    let min = Math.min(...smoothedSignals);
+    let max = Math.max(...smoothedSignals);
     let range = (max - min) || 1;
 
-    for (let i = 0; i < rawSignals.length; i++) {
-      let norm = (rawSignals[i] - min) / range;
+    for (let i = 0; i < smoothedSignals.length; i++) {
+      let norm = (smoothedSignals[i] - min) / range;
       let y = h - (norm * (h - 20) + 10);
       if (i === 0) ctx.moveTo(0, y);
       else ctx.lineTo(i * step, y);
