@@ -120,7 +120,7 @@
       margin-top: 8px;
       border: 1px solid #334155;
     }
-    canvas { width: 100%; height: 100%; display: block; }
+    canvas#ecgCanvas { width: 100%; height: 100%; display: block; }
 
     .zone-label {
       position: absolute;
@@ -130,7 +130,7 @@
       opacity: 0.7;
     }
 
-    /* Métricas (Actual, Media, Moda) */
+    /* Métricas */
     .metrics {
       display: grid;
       grid-template-columns: 1fr 1fr 1fr;
@@ -171,7 +171,7 @@
     <div class="form-group">
       <label for="timeSelect">Tiempo del Ejercicio (Minutos):</label>
       <select id="timeSelect">
-        <!-- Generado exactamente de 1 a 30 consecutivo -->
+        <!-- Generado de 1 a 30 consecutivo -->
       </select>
     </div>
 
@@ -179,7 +179,7 @@
       <label for="rpmSelect">Ritmo de Respiración por Minuto:</label>
       <select id="rpmSelect">
         <option value="15" selected>Respiración Normal</option>
-        <!-- Generado exactamente de 1 a 15 consecutivo -->
+        <!-- Generado de 1 a 15 consecutivo -->
       </select>
     </div>
   </div>
@@ -204,7 +204,7 @@
       <canvas id="ecgCanvas" width="350" height="120"></canvas>
     </div>
 
-    <!-- Muestra Actual, Media y Moda -->
+    <!-- Métricas -->
     <div class="metrics">
       <div class="metric-box">
         <div id="bpmVal" class="metric-val">--</div>
@@ -231,8 +231,10 @@
 
 </div>
 
+<canvas id="analyzerCanvas" width="100" height="100" style="display:none;"></canvas>
+
 <script>
-  // Populate Tiempo consecutivo 1 a 30
+  // Populate Tiempo 1 a 30
   const timeSelect = document.getElementById('timeSelect');
   for (let i = 1; i <= 30; i++) {
     const opt = document.createElement('option');
@@ -242,7 +244,7 @@
     timeSelect.appendChild(opt);
   }
 
-  // Populate RPM consecutivo 1 a 15
+  // Populate RPM 1 a 15
   const rpmSelect = document.getElementById('rpmSelect');
   for (let i = 1; i <= 15; i++) {
     const opt = document.createElement('option');
@@ -252,14 +254,18 @@
   }
 
   let active = false;
-  let track = null;
+  let videoTrack = null;
   let timerInterval = null;
+  let frameInterval = null;
   let timeLeft = 0;
   let animPacer = null;
   
-  let rawSignals = [];
+  // PARÁMETROS DE MEDICIÓN SOLICITADOS
+  let rValues = [];
+  let times = [];
   let currentBpmHistory = [];
-  let lastBeat = Date.now();
+  const maxDataPoints = 120;
+  let lastBpm = 0;
 
   let sessionsData = []; 
 
@@ -267,9 +273,8 @@
   const canvas = document.getElementById('ecgCanvas');
   const ctx = canvas.getContext('2d');
   
-  const hiddenCanvas = document.createElement('canvas');
-  hiddenCanvas.width = 50; hiddenCanvas.height = 50;
-  const hCtx = hiddenCanvas.getContext('2d');
+  const analyzerCanvas = document.getElementById('analyzerCanvas');
+  const aCtx = analyzerCanvas.getContext('2d');
 
   const pacerCircle = document.getElementById('pacerCircle');
   const pacerText = document.getElementById('pacerText');
@@ -296,9 +301,7 @@
       
       osc.start();
       osc.stop(audioCtx.currentTime + 0.8);
-    } catch(e) {
-      console.log("Audio Context no permitido:", e);
-    }
+    } catch(e){}
   }
 
   function calculateMode(arr) {
@@ -321,15 +324,25 @@
     if (!active) {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "environment" }
+          video: {
+            facingMode: "environment",
+            width: { ideal: 300 },
+            height: { ideal: 300 }
+          }
         });
+
         video.srcObject = stream;
-        track = stream.getVideoTracks()[0];
-        try { await track.applyConstraints({ advanced: [{ torch: true }] }); } catch(e){}
+        videoTrack = stream.getVideoTracks()[0];
+
+        setTimeout(async () => {
+          try { await videoTrack.applyConstraints({ advanced: [{ torch: true }] }); } catch (e) {}
+        }, 1000);
 
         active = true;
         currentBpmHistory = [];
-        rawSignals = [];
+        rValues = [];
+        times = [];
+        lastBpm = 0;
         
         startBtn.textContent = "Detener Ejercicio";
         startBtn.style.background = "#ef4444";
@@ -337,9 +350,9 @@
 
         startTimer();
         startPacer();
-        processFrame();
+        frameInterval = setInterval(processFrame, 1000 / 30);
       } catch (err) {
-        alert("Error al acceder a la cámara: " + err);
+        alert("Error al acceder a la cámara trasera: " + err);
       }
     } else {
       stopSession(false);
@@ -365,43 +378,75 @@
     timerDisplay.textContent = `${m < 10 ? '0':''}${m}:${s < 10 ? '0':''}${s}`;
   }
 
-  // ALGORITMO ORIGINAL REAL RESTAURADO
+  // --- ALGORITMO INTEGRADO DE TUS PARÁMETROS ---
   function processFrame() {
-    if (!active) return;
+    if (!active || video.paused || video.ended) return;
 
-    hCtx.drawImage(video, 0, 0, 50, 50);
-    const frame = hCtx.getImageData(0, 0, 50, 50);
-    let sum = 0;
-    for (let i = 0; i < frame.data.length; i += 4) {
-      sum += frame.data[i];
+    aCtx.drawImage(video, 0, 0, analyzerCanvas.width, analyzerCanvas.height);
+    const imgData = aCtx.getImageData(0, 0, analyzerCanvas.width, analyzerCanvas.height);
+    const data = imgData.data;
+
+    let totalRed = 0;
+    for (let i = 0; i < data.length; i += 4) {
+      totalRed += data[i];
     }
-    let avg = sum / (frame.data.length / 4);
 
-    rawSignals.push(avg);
-    if (rawSignals.length > 50) rawSignals.shift();
+    const avgRed = totalRed / (data.length / 4);
+    rValues.push(avgRed);
+    times.push(performance.now());
 
-    let mean = rawSignals.reduce((a,b)=>a+b,0) / rawSignals.length;
-    let now = Date.now();
+    if (rValues.length > maxDataPoints) {
+      rValues.shift();
+      times.shift();
+    }
 
-    if (avg > mean + 1 && (now - lastBeat) > 400) {
-      let bpm = Math.round(60000 / (now - lastBeat));
-      if (bpm >= 40 && bpm <= 180) {
-        bpmVal.textContent = bpm;
-        currentBpmHistory.push(bpm);
-        
-        // Media
-        let sessionAvg = Math.round(currentBpmHistory.reduce((a,b)=>a+b,0) / currentBpmHistory.length);
-        avgVal.textContent = sessionAvg;
-
-        // Moda
-        let sessionMode = calculateMode(currentBpmHistory);
-        modeVal.textContent = sessionMode;
-      }
-      lastBeat = now;
+    if (rValues.length >= 80) {
+      calculateBPM();
     }
 
     drawZonedEEG();
-    requestAnimationFrame(processFrame);
+  }
+
+  function calculateBPM() {
+    let peaks = [];
+    let smoothValues = [];
+    
+    // Suavizado de 7 puntos
+    for (let i = 3; i < rValues.length - 3; i++) {
+      let val = (rValues[i-3] + rValues[i-2] + rValues[i-1] + rValues[i] + rValues[i+1] + rValues[i+2] + rValues[i+3]) / 7;
+      smoothValues.push({val: val, time: times[i]});
+    }
+
+    for (let i = 1; i < smoothValues.length - 1; i++) {
+      if (smoothValues[i].val > smoothValues[i-1].val && smoothValues[i].val > smoothValues[i+1].val) {
+        peaks.push(smoothValues[i].time);
+      }
+    }
+
+    if (peaks.length >= 3) {
+      let intervals = [];
+      for (let i = 1; i < peaks.length; i++) {
+        intervals.push(peaks[i] - peaks[i-1]);
+      }
+      
+      const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+      let bpm = Math.round(60000 / avgInterval);
+
+      // Rango de 50 a 150 BPM con Amortiguación al 10%
+      if (bpm >= 50 && bpm <= 150) {
+        if (lastBpm === 0) lastBpm = bpm;
+        lastBpm = Math.round(lastBpm * 0.9 + bpm * 0.1);
+        
+        bpmVal.textContent = lastBpm;
+        currentBpmHistory.push(lastBpm);
+
+        let sessionAvg = Math.round(currentBpmHistory.reduce((a,b)=>a+b,0) / currentBpmHistory.length);
+        avgVal.textContent = sessionAvg;
+
+        let sessionMode = calculateMode(currentBpmHistory);
+        modeVal.textContent = sessionMode;
+      }
+    }
   }
 
   function drawZonedEEG() {
@@ -409,7 +454,6 @@
     const h = canvas.height;
     ctx.clearRect(0, 0, w, h);
 
-    // Zonas de fondo
     ctx.fillStyle = "rgba(239, 68, 68, 0.12)";
     ctx.fillRect(0, 0, w, h * 0.33);
 
@@ -426,7 +470,7 @@
     ctx.moveTo(0, h * 0.67); ctx.lineTo(w, h * 0.67);
     ctx.stroke();
 
-    if (rawSignals.length < 2) return;
+    if (rValues.length < 2) return;
 
     const currentSessionNum = sessionsData.length + 1;
     const lineColor = (currentSessionNum % 2 !== 0) ? "#38bdf8" : "#f59e0b";
@@ -435,13 +479,13 @@
     ctx.lineWidth = 2.5;
     ctx.beginPath();
 
-    let step = w / 50;
-    let min = Math.min(...rawSignals);
-    let max = Math.max(...rawSignals);
+    let step = w / maxDataPoints;
+    let min = Math.min(...rValues);
+    let max = Math.max(...rValues);
     let range = (max - min) || 1;
 
-    for (let i = 0; i < rawSignals.length; i++) {
-      let norm = (rawSignals[i] - min) / range;
+    for (let i = 0; i < rValues.length; i++) {
+      let norm = (rValues[i] - min) / range;
       let y = h - (norm * (h - 20) + 10);
       if (i === 0) ctx.moveTo(0, y);
       else ctx.lineTo(i * step, y);
@@ -481,9 +525,13 @@
 
   function stopSession(completed) {
     active = false;
-    if (track) track.stop();
+    clearInterval(frameInterval);
     clearInterval(timerInterval);
     cancelAnimationFrame(animPacer);
+
+    if (videoTrack) { try { videoTrack.stop(); } catch(e){} }
+    if (video.srcObject) { video.srcObject.getTracks().forEach(t => t.stop()); }
+    video.srcObject = null;
 
     pacerCircle.style.transform = "scale(1)";
     pacerText.textContent = "Listo";
@@ -496,7 +544,6 @@
       : "--";
 
     let finalMode = calculateMode(currentBpmHistory);
-
     let selectedRpmText = rpmSelect.options[rpmSelect.selectedIndex].text;
 
     sessionsData.push({
