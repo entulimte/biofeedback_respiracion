@@ -8,8 +8,8 @@
     :root {
       --bg: #0f172a;
       --card: #1e293b;
-      --accent: #38bdf8;
-      --accent2: #f59e0b;
+      --accent1: #38bdf8; /* Azul para Intento 1 */
+      --accent2: #f59e0b; /* Naranja para Intento 2 */
       --text: #f8fafc;
     }
     body {
@@ -37,7 +37,7 @@
       text-align: center;
       box-sizing: border-box;
     }
-    h2 { margin: 0 0 10px 0; font-size: 1.1rem; color: var(--accent); }
+    h2 { margin: 0 0 10px 0; font-size: 1.1rem; color: var(--accent1); }
     
     .form-group {
       display: flex;
@@ -57,19 +57,19 @@
       box-sizing: border-box;
     }
     select { background: #334155; color: #fff; }
-    button { background: var(--accent); color: #0f172a; cursor: pointer; margin-top: 5px; }
+    button { background: var(--accent1); color: #0f172a; cursor: pointer; margin-top: 5px; }
 
     /* Pacer Respiratorio */
     .pacer-container {
-      height: 150px;
+      height: 140px;
       display: flex;
       justify-content: center;
       align-items: center;
       position: relative;
     }
     .pacer-circle {
-      width: 50px;
-      height: 50px;
+      width: 45px;
+      height: 45px;
       border-radius: 50%;
       background: radial-gradient(circle, #38bdf8 0%, #0284c7 100%);
       box-shadow: 0 0 20px rgba(56, 189, 248, 0.5);
@@ -83,19 +83,19 @@
       pointer-events: none;
     }
 
-    /* Video y Pantalla ECG */
+    /* Cam y Cronómetro */
     .cam-box {
       display: flex;
       justify-content: center;
       align-items: center;
-      gap: 10px;
+      gap: 15px;
       margin-bottom: 10px;
     }
     #videoPreview {
-      width: 65px;
-      height: 65px;
+      width: 60px;
+      height: 60px;
       border-radius: 50%;
-      border: 2px solid var(--accent);
+      border: 2px solid var(--accent1);
       object-fit: cover;
       background: #000;
     }
@@ -103,22 +103,32 @@
       font-size: 1.5rem;
       font-weight: bold;
       color: var(--accent2);
-      background: rgba(0,0,0,0.3);
-      padding: 8px 15px;
+      background: rgba(0,0,0,0.4);
+      padding: 6px 15px;
       border-radius: 8px;
+      border: 1px solid #334155;
     }
 
-    /* Canvas Zonas */
+    /* Gráfico EEG con 3 Zonas */
     .graph-container {
       position: relative;
       width: 100%;
-      height: 110px;
+      height: 120px;
       background: #020617;
       border-radius: 8px;
       overflow: hidden;
       margin-top: 8px;
+      border: 1px solid #334155;
     }
     canvas { width: 100%; height: 100%; display: block; }
+
+    .zone-label {
+      position: absolute;
+      right: 5px;
+      font-size: 0.65rem;
+      font-weight: bold;
+      opacity: 0.6;
+    }
 
     /* Métricas */
     .metrics {
@@ -132,7 +142,7 @@
       padding: 8px;
       border-radius: 8px;
     }
-    .metric-val { font-size: 1.5rem; font-weight: bold; color: var(--accent); }
+    .metric-val { font-size: 1.5rem; font-weight: bold; color: var(--accent1); }
     .metric-label { font-size: 0.75rem; opacity: 0.8; }
 
     /* Tabla Comparativa */
@@ -144,10 +154,10 @@
     }
     th, td {
       border: 1px solid #334155;
-      padding: 6px;
+      padding: 8px 4px;
       text-align: center;
     }
-    th { background: rgba(255,255,255,0.05); color: var(--accent); }
+    th { background: rgba(255,255,255,0.05); color: var(--accent1); }
   </style>
 </head>
 <body>
@@ -159,14 +169,17 @@
     <h2>Configuración de Entrenamiento</h2>
     
     <div class="form-group">
-      <label for="timeSelect">Tiempo del Ejercicio:</label>
-      <select id="timeSelect"></select>
+      <label for="timeSelect">Tiempo del Ejercicio (Minutos):</label>
+      <select id="timeSelect">
+        <!-- Generado exactamente de 1 a 30 consecutivo -->
+      </select>
     </div>
 
     <div class="form-group">
-      <label for="rpmSelect">Ritmo de Respiración (RPM):</label>
+      <label for="rpmSelect">Ritmo de Respiración por Minuto:</label>
       <select id="rpmSelect">
-        <option value="15" selected>Respiración Normal (15 RPM)</option>
+        <option value="15" selected>Respiración Normal</option>
+        <!-- Generado exactamente de 1 a 15 consecutivo -->
       </select>
     </div>
   </div>
@@ -183,9 +196,12 @@
       <div id="pacerText" class="pacer-text">Listo</div>
     </div>
 
-    <!-- Gráfica con Zonas de Colores -->
+    <!-- Gráfica EEG con 3 Zonas de Color -->
     <div class="graph-container">
-      <canvas id="ecgCanvas" width="350" height="110"></canvas>
+      <span class="zone-label" style="top: 2px; color: #ef4444;">>100 BPM</span>
+      <span class="zone-label" style="top: 40px; color: #f59e0b;">70-100 BPM</span>
+      <span class="zone-label" style="bottom: 2px; color: #10b981;"><70 BPM</span>
+      <canvas id="ecgCanvas" width="350" height="120"></canvas>
     </div>
 
     <div class="metrics">
@@ -202,16 +218,16 @@
     <button id="startBtn">Iniciar Ejercicio</button>
   </div>
 
-  <!-- Resultados y Comparativa -->
+  <!-- Resumen y Cuadro Comparativo -->
   <div class="card" id="resultsCard" style="display:none;">
-    <h2>Resumen Comparativo</h2>
+    <h2>Cuadro Comparativo</h2>
     <div id="tableContainer"></div>
   </div>
 
 </div>
 
 <script>
-  // Poblar opciones de tiempo (1 a 30 min) y RPM (1 a 15)
+  // Populate Tiempo consecutivo 1 a 30
   const timeSelect = document.getElementById('timeSelect');
   for (let i = 1; i <= 30; i++) {
     const opt = document.createElement('option');
@@ -221,11 +237,12 @@
     timeSelect.appendChild(opt);
   }
 
+  // Populate RPM consecutivo 1 a 15
   const rpmSelect = document.getElementById('rpmSelect');
-  for (let i = 1; i <= 14; i++) {
+  for (let i = 1; i <= 15; i++) {
     const opt = document.createElement('option');
     opt.value = i;
-    opt.textContent = `${i} Respiración${i > 1 ? 'es' : ''} por minuto (${i} RPM)`;
+    opt.textContent = `${i} RPM (${i} respiración${i > 1 ? 'es' : ''}/min)`;
     rpmSelect.appendChild(opt);
   }
 
@@ -239,7 +256,6 @@
   let currentBpmHistory = [];
   let lastBeat = Date.now();
 
-  // Historial para tabla comparativa (Sesión 1 y 2)
   let sessionsData = []; 
 
   const video = document.getElementById('videoPreview');
@@ -324,7 +340,7 @@
     let mean = rawSignals.reduce((a,b)=>a+b,0) / rawSignals.length;
     let now = Date.now();
 
-    if (avg > mean + 0.6 && (now - lastBeat) > 380) {
+    if (avg > mean + 0.5 && (now - lastBeat) > 380) {
       let bpm = Math.round(60000 / (now - lastBeat));
       if (bpm >= 40 && bpm <= 180) {
         bpmVal.textContent = bpm;
@@ -335,41 +351,36 @@
       lastBeat = now;
     }
 
-    drawZonedGraph();
+    drawZonedEEG();
     requestAnimationFrame(processFrame);
   }
 
-  // Dibujar Gráfica con 3 Zonas de BPM
-  function drawZonedGraph() {
+  function drawZonedEEG() {
     const w = canvas.width;
     const h = canvas.height;
     ctx.clearRect(0, 0, w, h);
 
-    // Dibuja Zonas por Colores de Fondo
-    // Zona >100 BPM (Rojo superior)
-    ctx.fillStyle = "rgba(239, 68, 68, 0.15)";
-    ctx.fillRect(0, 0, w, h * 0.3);
+    // Dibuja Zonas
+    ctx.fillStyle = "rgba(239, 68, 68, 0.12)";
+    ctx.fillRect(0, 0, w, h * 0.33);
 
-    // Zona 70-100 BPM (Amarillo medio)
-    ctx.fillStyle = "rgba(245, 158, 11, 0.15)";
-    ctx.fillRect(0, h * 0.3, w, h * 0.4);
+    ctx.fillStyle = "rgba(245, 158, 11, 0.12)";
+    ctx.fillRect(0, h * 0.33, w, h * 0.34);
 
-    // Zona <70 BPM (Verde/Azul inferior)
-    ctx.fillStyle = "rgba(16, 185, 129, 0.15)";
-    ctx.fillRect(0, h * 0.7, w, h * 0.3);
+    ctx.fillStyle = "rgba(16, 185, 129, 0.12)";
+    ctx.fillRect(0, h * 0.67, w, h * 0.33);
 
-    // Líneas divisoras
-    ctx.strokeStyle = "rgba(255,255,255,0.1)";
+    ctx.strokeStyle = "rgba(255,255,255,0.15)";
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.moveTo(0, h * 0.3); ctx.lineTo(w, h * 0.3);
-    ctx.moveTo(0, h * 0.7); ctx.lineTo(w, h * 0.7);
+    ctx.moveTo(0, h * 0.33); ctx.lineTo(w, h * 0.33);
+    ctx.moveTo(0, h * 0.67); ctx.lineTo(w, h * 0.67);
     ctx.stroke();
 
     if (rawSignals.length < 2) return;
 
-    // Color del trazo: Sesión 1 = Azul/Cian (#38bdf8), Sesión 2 = Naranja (#f59e0b)
-    const lineColor = (sessionsData.length % 2 === 0) ? "#38bdf8" : "#f59e0b";
+    const currentSessionNum = sessionsData.length + 1;
+    const lineColor = (currentSessionNum % 2 !== 0) ? "#38bdf8" : "#f59e0b";
 
     ctx.strokeStyle = lineColor;
     ctx.lineWidth = 2.5;
@@ -389,12 +400,9 @@
     ctx.stroke();
   }
 
-  // Pacer Respiratorio: Inhalar - Detener - Exhalar
   function startPacer() {
-    const rpm = parseFloat(rpmSelect.value);
-    const totalCycleMs = (60 / rpm) * 1000;
-    
-    // Proporción: 40% Inhala, 20% Detener, 40% Exhala
+    let rpmVal = rpmSelect.value === "15" ? 15 : parseFloat(rpmSelect.value);
+    const totalCycleMs = (60 / rpmVal) * 1000;
     const start = Date.now();
 
     function step() {
@@ -403,19 +411,16 @@
       let prog = elapsed / totalCycleMs;
 
       if (prog < 0.4) {
-        // Inhalar (se infla)
         let phaseProg = prog / 0.4;
-        let scale = 1 + (phaseProg * 1.6);
+        let scale = 1 + (phaseProg * 1.5);
         pacerCircle.style.transform = `scale(${scale})`;
         pacerText.textContent = "Inhalar...";
       } else if (prog < 0.6) {
-        // Detener (mantiene inflado)
-        pacerCircle.style.transform = `scale(2.6)`;
+        pacerCircle.style.transform = `scale(2.5)`;
         pacerText.textContent = "Detener";
       } else {
-        // Exhalar (se desinfla)
         let phaseProg = (prog - 0.6) / 0.4;
-        let scale = 2.6 - (phaseProg * 1.6);
+        let scale = 2.5 - (phaseProg * 1.5);
         pacerCircle.style.transform = `scale(${scale})`;
         pacerText.textContent = "Exhalar...";
       }
@@ -437,20 +442,21 @@
     startBtn.style.background = "#38bdf8";
     startBtn.style.color = "#0f172a";
 
-    // Guardar datos de la sesión
     let finalAvg = currentBpmHistory.length > 0 
       ? Math.round(currentBpmHistory.reduce((a,b)=>a+b,0)/currentBpmHistory.length)
       : "--";
 
+    let selectedRpmText = rpmSelect.options[rpmSelect.selectedIndex].text;
+
     sessionsData.push({
       num: sessionsData.length + 1,
       time: timeSelect.value + " min",
-      rpm: rpmSelect.value + " RPM",
+      rpm: selectedRpmText,
       avgBpm: finalAvg
     });
 
     renderResultsTable();
-    if (completed) alert("¡Tiempo de ejercicio completado!");
+    if (completed) alert("¡Tiempo de entrenamiento finalizado!");
   }
 
   function renderResultsTable() {
@@ -459,7 +465,7 @@
       <table>
         <thead>
           <tr>
-            <th>Sesión</th>
+            <th>Intento</th>
             <th>Tiempo</th>
             <th>Ritmo</th>
             <th>Promedio BPM</th>
@@ -469,12 +475,14 @@
     `;
 
     sessionsData.forEach((s) => {
+      let isFirst = (s.num % 2 !== 0);
+      let color = isFirst ? '#38bdf8' : '#f59e0b';
       html += `
         <tr>
-          <td><strong>#${s.num}</strong></td>
+          <td style="color:${color}; font-weight:bold;">#${s.num} ${isFirst ? '(Azul)' : '(Naranja)'}</td>
           <td>${s.time}</td>
           <td>${s.rpm}</td>
-          <td style="color:${s.num === 1 ? '#38bdf8' : '#f59e0b'}; font-weight:bold;">${s.avgBpm} BPM</td>
+          <td style="color:${color}; font-weight:bold; font-size:1.1rem;">${s.avgBpm} BPM</td>
         </tr>
       `;
     });
