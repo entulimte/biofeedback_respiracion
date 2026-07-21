@@ -5,153 +5,261 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Biofeedback Cardiorrespiratorio</title>
   <style>
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --accent: #38bdf8;
+      --accent2: #f59e0b;
+      --text: #f8fafc;
+    }
     body {
-      font-family: sans-serif;
-      background: #0f172a;
-      color: #fff;
+      font-family: system-ui, -apple-system, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
       margin: 0;
-      padding: 15px;
+      padding: 12px;
       display: flex;
       flex-direction: column;
       align-items: center;
     }
+    .container {
+      max-width: 450px;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
     .card {
-      background: #1e293b;
+      background: var(--card);
       padding: 15px;
       border-radius: 12px;
-      width: 100%;
-      max-width: 400px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
       text-align: center;
-      margin-bottom: 15px;
       box-sizing: border-box;
     }
-    .pacer-box {
-      height: 160px;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      position: relative;
-    }
-    .circle {
-      width: 50px;
-      height: 50px;
-      border-radius: 50%;
-      background: #38bdf8;
-      transition: transform 0.1s linear;
-    }
-    .pacer-text {
-      position: absolute;
-      font-weight: bold;
-    }
-    #videoPreview {
-      width: 100px;
-      height: 100px;
-      border-radius: 50%;
-      border: 3px solid #38bdf8;
-      object-fit: cover;
-      background: #000;
-      margin: 0 auto;
-    }
-    .metrics {
-      display: flex;
-      justify-content: space-around;
-      margin: 15px 0;
-    }
-    .val { font-size: 1.8rem; font-weight: bold; color: #38bdf8; }
+    h2 { margin: 0 0 10px 0; font-size: 1.1rem; color: var(--accent); }
     
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      text-align: left;
+      gap: 4px;
+      margin-bottom: 10px;
+    }
+    label { font-size: 0.85rem; opacity: 0.9; }
     select, button {
       width: 100%;
       padding: 10px;
       border-radius: 8px;
       border: none;
       font-weight: bold;
-      margin-top: 8px;
+      font-size: 0.95rem;
       box-sizing: border-box;
     }
     select { background: #334155; color: #fff; }
-    button { background: #38bdf8; color: #000; cursor: pointer; font-size: 1.1rem; }
-    .timer-display { font-size: 1.4rem; font-weight: bold; color: #f59e0b; margin-top: 5px; }
+    button { background: var(--accent); color: #0f172a; cursor: pointer; margin-top: 5px; }
+
+    /* Pacer Respiratorio */
+    .pacer-container {
+      height: 150px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      position: relative;
+    }
+    .pacer-circle {
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      background: radial-gradient(circle, #38bdf8 0%, #0284c7 100%);
+      box-shadow: 0 0 20px rgba(56, 189, 248, 0.5);
+      transition: transform 0.1s linear;
+    }
+    .pacer-text {
+      position: absolute;
+      font-weight: bold;
+      font-size: 1.1rem;
+      text-shadow: 0 1px 4px rgba(0,0,0,0.9);
+      pointer-events: none;
+    }
+
+    /* Video y Pantalla ECG */
+    .cam-box {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    #videoPreview {
+      width: 65px;
+      height: 65px;
+      border-radius: 50%;
+      border: 2px solid var(--accent);
+      object-fit: cover;
+      background: #000;
+    }
+    .timer-badge {
+      font-size: 1.5rem;
+      font-weight: bold;
+      color: var(--accent2);
+      background: rgba(0,0,0,0.3);
+      padding: 8px 15px;
+      border-radius: 8px;
+    }
+
+    /* Canvas Zonas */
+    .graph-container {
+      position: relative;
+      width: 100%;
+      height: 110px;
+      background: #020617;
+      border-radius: 8px;
+      overflow: hidden;
+      margin-top: 8px;
+    }
+    canvas { width: 100%; height: 100%; display: block; }
+
+    /* Métricas */
+    .metrics {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .metric-box {
+      background: rgba(255,255,255,0.05);
+      padding: 8px;
+      border-radius: 8px;
+    }
+    .metric-val { font-size: 1.5rem; font-weight: bold; color: var(--accent); }
+    .metric-label { font-size: 0.75rem; opacity: 0.8; }
+
+    /* Tabla Comparativa */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      font-size: 0.85rem;
+    }
+    th, td {
+      border: 1px solid #334155;
+      padding: 6px;
+      text-align: center;
+    }
+    th { background: rgba(255,255,255,0.05); color: var(--accent); }
   </style>
 </head>
 <body>
 
-  <!-- Pacer y Tiempos -->
+<div class="container">
+  
+  <!-- Configuración de Sesión -->
+  <div class="card" id="configCard">
+    <h2>Configuración de Entrenamiento</h2>
+    
+    <div class="form-group">
+      <label for="timeSelect">Tiempo del Ejercicio:</label>
+      <select id="timeSelect"></select>
+    </div>
+
+    <div class="form-group">
+      <label for="rpmSelect">Ritmo de Respiración (RPM):</label>
+      <select id="rpmSelect">
+        <option value="15" selected>Respiración Normal (15 RPM)</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Pacer y Sensor -->
   <div class="card">
-    <label>Duración de la Sesión:</label>
-    <select id="sessionTime">
-      <option value="1">1 Minuto</option>
-      <option value="2">2 Minutos</option>
-      <option value="3">3 Minutos</option>
-      <option value="5" selected>5 Minutos</option>
-      <option value="10">10 Minutos</option>
-      <option value="15">15 Minutos</option>
-      <option value="20">20 Minutos</option>
-      <option value="30">30 Minutos</option>
-    </select>
+    <div class="cam-box">
+      <video id="videoPreview" autoplay playsinline muted></video>
+      <div class="timer-badge" id="timerDisplay">00:00</div>
+    </div>
 
-    <label style="margin-top:10px; display:block;">Ritmo de Respiración (RPM):</label>
-    <select id="rpm">
-      <option value="15">15 RPM (Respiración Normal)</option>
-      <option value="12">12 RPM</option>
-      <option value="10">10 RPM</option>
-      <option value="8">8 RPM</option>
-      <option value="6" selected>6 RPM (Coherencia)</option>
-      <option value="5.5">5.5 RPM</option>
-      <option value="5">5 RPM</option>
-      <option value="4.5">4.5 RPM</option>
-      <option value="4">4 RPM</option>
-    </select>
-
-    <div class="timer-display" id="timeRemaining">--:--</div>
-
-    <div class="pacer-box">
-      <div id="circle" class="circle"></div>
+    <div class="pacer-container">
+      <div id="pacerCircle" class="pacer-circle"></div>
       <div id="pacerText" class="pacer-text">Listo</div>
     </div>
-  </div>
 
-  <!-- Cámara y Lectura -->
-  <div class="card">
-    <video id="videoPreview" autoplay playsinline muted></video>
-    <canvas id="canvas" width="50" height="50" style="display:none;"></canvas>
+    <!-- Gráfica con Zonas de Colores -->
+    <div class="graph-container">
+      <canvas id="ecgCanvas" width="350" height="110"></canvas>
+    </div>
 
     <div class="metrics">
-      <div>
-        <div id="bpmVal" class="val">--</div>
-        <small>BPM Actual</small>
+      <div class="metric-box">
+        <div id="bpmVal" class="metric-val">--</div>
+        <div class="metric-label">BPM Actual</div>
       </div>
-      <div>
-        <div id="avgVal" class="val">--</div>
-        <small>Promedio</small>
+      <div class="metric-box">
+        <div id="avgVal" class="metric-val">--</div>
+        <div class="metric-label">Promedio Sesión</div>
       </div>
     </div>
 
-    <button id="btn">Iniciar Sesión</button>
+    <button id="startBtn">Iniciar Ejercicio</button>
   </div>
 
+  <!-- Resultados y Comparativa -->
+  <div class="card" id="resultsCard" style="display:none;">
+    <h2>Resumen Comparativo</h2>
+    <div id="tableContainer"></div>
+  </div>
+
+</div>
+
 <script>
+  // Poblar opciones de tiempo (1 a 30 min) y RPM (1 a 15)
+  const timeSelect = document.getElementById('timeSelect');
+  for (let i = 1; i <= 30; i++) {
+    const opt = document.createElement('option');
+    opt.value = i;
+    opt.textContent = `${i} Minuto${i > 1 ? 's' : ''}`;
+    if (i === 3) opt.selected = true;
+    timeSelect.appendChild(opt);
+  }
+
+  const rpmSelect = document.getElementById('rpmSelect');
+  for (let i = 1; i <= 14; i++) {
+    const opt = document.createElement('option');
+    opt.value = i;
+    opt.textContent = `${i} Respiración${i > 1 ? 'es' : ''} por minuto (${i} RPM)`;
+    rpmSelect.appendChild(opt);
+  }
+
   let active = false;
   let track = null;
-  let bpmHistory = [];
-  let lastBeat = Date.now();
-  let raw = [];
-  let anim = null;
   let timerInterval = null;
   let timeLeft = 0;
+  let animPacer = null;
+  
+  let rawSignals = [];
+  let currentBpmHistory = [];
+  let lastBeat = Date.now();
+
+  // Historial para tabla comparativa (Sesión 1 y 2)
+  let sessionsData = []; 
 
   const video = document.getElementById('videoPreview');
-  const canvas = document.getElementById('canvas');
+  const canvas = document.getElementById('ecgCanvas');
   const ctx = canvas.getContext('2d');
-  const circle = document.getElementById('circle');
+  
+  const hiddenCanvas = document.createElement('canvas');
+  hiddenCanvas.width = 50; hiddenCanvas.height = 50;
+  const hCtx = hiddenCanvas.getContext('2d');
+
+  const pacerCircle = document.getElementById('pacerCircle');
   const pacerText = document.getElementById('pacerText');
   const bpmVal = document.getElementById('bpmVal');
   const avgVal = document.getElementById('avgVal');
-  const btn = document.getElementById('btn');
-  const rpmSelect = document.getElementById('rpm');
-  const timeSelect = document.getElementById('sessionTime');
-  const timeRemaining = document.getElementById('timeRemaining');
+  const startBtn = document.getElementById('startBtn');
+  const timerDisplay = document.getElementById('timerDisplay');
+  const resultsCard = document.getElementById('resultsCard');
+  const tableContainer = document.getElementById('tableContainer');
 
-  btn.addEventListener('click', async () => {
+  startBtn.addEventListener('click', async () => {
     if (!active) {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
@@ -162,107 +270,217 @@
         try { await track.applyConstraints({ advanced: [{ torch: true }] }); } catch(e){}
 
         active = true;
-        bpmHistory = [];
-        raw = [];
-        btn.textContent = "Detener";
-        btn.style.background = "#ef4444";
-        btn.style.color = "#fff";
+        currentBpmHistory = [];
+        rawSignals = [];
+        
+        startBtn.textContent = "Detener Ejercicio";
+        startBtn.style.background = "#ef4444";
+        startBtn.style.color = "#fff";
 
         startTimer();
-        runPacer();
-        process();
+        startPacer();
+        processFrame();
       } catch (err) {
-        alert("Error al abrir cámara: " + err);
+        alert("Error al acceder a la cámara: " + err);
       }
     } else {
-      stop();
+      stopSession(false);
     }
   });
 
   function startTimer() {
     timeLeft = parseInt(timeSelect.value) * 60;
-    updateTimerDisplay();
+    updateTimerText();
 
     timerInterval = setInterval(() => {
       timeLeft--;
-      updateTimerDisplay();
+      updateTimerText();
       if (timeLeft <= 0) {
-        stop();
-        alert("¡Sesión finalizada!");
+        stopSession(true);
       }
     }, 1000);
   }
 
-  function updateTimerDisplay() {
+  function updateTimerText() {
     let m = Math.floor(timeLeft / 60);
     let s = timeLeft % 60;
-    timeRemaining.textContent = `${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
+    timerDisplay.textContent = `${m < 10 ? '0':''}${m}:${s < 10 ? '0':''}${s}`;
   }
 
-  function process() {
+  function processFrame() {
     if (!active) return;
-    ctx.drawImage(video, 0, 0, 50, 50);
-    const frame = ctx.getImageData(0, 0, 50, 50);
+
+    hCtx.drawImage(video, 0, 0, 50, 50);
+    const frame = hCtx.getImageData(0, 0, 50, 50);
     let sum = 0;
-    
-    // Canal rojo
     for (let i = 0; i < frame.data.length; i += 4) {
       sum += frame.data[i];
     }
     let avg = sum / (frame.data.length / 4);
 
-    raw.push(avg);
-    if (raw.length > 30) raw.shift();
-    
-    let mean = raw.reduce((a,b) => a+b, 0) / raw.length;
+    rawSignals.push(avg);
+    if (rawSignals.length > 80) rawSignals.shift();
+
+    let mean = rawSignals.reduce((a,b)=>a+b,0) / rawSignals.length;
     let now = Date.now();
 
-    // Detección de pulso sensible
-    if (avg > mean + 0.4 && (now - lastBeat) > 380) {
+    if (avg > mean + 0.6 && (now - lastBeat) > 380) {
       let bpm = Math.round(60000 / (now - lastBeat));
       if (bpm >= 40 && bpm <= 180) {
         bpmVal.textContent = bpm;
-        bpmHistory.push(bpm);
-        avgVal.textContent = Math.round(bpmHistory.reduce((a,b) => a+b, 0) / bpmHistory.length);
+        currentBpmHistory.push(bpm);
+        let sessionAvg = Math.round(currentBpmHistory.reduce((a,b)=>a+b,0) / currentBpmHistory.length);
+        avgVal.textContent = sessionAvg;
       }
       lastBeat = now;
     }
-    requestAnimationFrame(process);
+
+    drawZonedGraph();
+    requestAnimationFrame(processFrame);
   }
 
-  function runPacer() {
+  // Dibujar Gráfica con 3 Zonas de BPM
+  function drawZonedGraph() {
+    const w = canvas.width;
+    const h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+
+    // Dibuja Zonas por Colores de Fondo
+    // Zona >100 BPM (Rojo superior)
+    ctx.fillStyle = "rgba(239, 68, 68, 0.15)";
+    ctx.fillRect(0, 0, w, h * 0.3);
+
+    // Zona 70-100 BPM (Amarillo medio)
+    ctx.fillStyle = "rgba(245, 158, 11, 0.15)";
+    ctx.fillRect(0, h * 0.3, w, h * 0.4);
+
+    // Zona <70 BPM (Verde/Azul inferior)
+    ctx.fillStyle = "rgba(16, 185, 129, 0.15)";
+    ctx.fillRect(0, h * 0.7, w, h * 0.3);
+
+    // Líneas divisoras
+    ctx.strokeStyle = "rgba(255,255,255,0.1)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, h * 0.3); ctx.lineTo(w, h * 0.3);
+    ctx.moveTo(0, h * 0.7); ctx.lineTo(w, h * 0.7);
+    ctx.stroke();
+
+    if (rawSignals.length < 2) return;
+
+    // Color del trazo: Sesión 1 = Azul/Cian (#38bdf8), Sesión 2 = Naranja (#f59e0b)
+    const lineColor = (sessionsData.length % 2 === 0) ? "#38bdf8" : "#f59e0b";
+
+    ctx.strokeStyle = lineColor;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+
+    let step = w / 80;
+    let min = Math.min(...rawSignals);
+    let max = Math.max(...rawSignals);
+    let range = (max - min) || 1;
+
+    for (let i = 0; i < rawSignals.length; i++) {
+      let norm = (rawSignals[i] - min) / range;
+      let y = h - (norm * (h - 20) + 10);
+      if (i === 0) ctx.moveTo(0, y);
+      else ctx.lineTo(i * step, y);
+    }
+    ctx.stroke();
+  }
+
+  // Pacer Respiratorio: Inhalar - Detener - Exhalar
+  function startPacer() {
     const rpm = parseFloat(rpmSelect.value);
-    const ms = (60 / rpm) * 1000;
+    const totalCycleMs = (60 / rpm) * 1000;
+    
+    // Proporción: 40% Inhala, 20% Detener, 40% Exhala
     const start = Date.now();
 
     function step() {
       if (!active) return;
-      let elapsed = (Date.now() - start) % ms;
-      let prog = elapsed / ms;
+      let elapsed = (Date.now() - start) % totalCycleMs;
+      let prog = elapsed / totalCycleMs;
 
-      if (prog < 0.5) {
-        circle.style.transform = `scale(${1 + (prog * 2) * 1.5})`;
-        pacerText.textContent = "Inhala";
+      if (prog < 0.4) {
+        // Inhalar (se infla)
+        let phaseProg = prog / 0.4;
+        let scale = 1 + (phaseProg * 1.6);
+        pacerCircle.style.transform = `scale(${scale})`;
+        pacerText.textContent = "Inhalar...";
+      } else if (prog < 0.6) {
+        // Detener (mantiene inflado)
+        pacerCircle.style.transform = `scale(2.6)`;
+        pacerText.textContent = "Detener";
       } else {
-        circle.style.transform = `scale(${1 + ((1 - prog) * 2) * 1.5})`;
-        pacerText.textContent = "Exhala";
+        // Exhalar (se desinfla)
+        let phaseProg = (prog - 0.6) / 0.4;
+        let scale = 2.6 - (phaseProg * 1.6);
+        pacerCircle.style.transform = `scale(${scale})`;
+        pacerText.textContent = "Exhalar...";
       }
-      anim = requestAnimationFrame(step);
+
+      animPacer = requestAnimationFrame(step);
     }
     step();
   }
 
-  function stop() {
+  function stopSession(completed) {
     active = false;
     if (track) track.stop();
     clearInterval(timerInterval);
-    cancelAnimationFrame(anim);
-    circle.style.transform = "scale(1)";
+    cancelAnimationFrame(animPacer);
+
+    pacerCircle.style.transform = "scale(1)";
     pacerText.textContent = "Listo";
-    timeRemaining.textContent = "--:--";
-    btn.textContent = "Iniciar Sesión";
-    btn.style.background = "#38bdf8";
-    btn.style.color = "#000";
+    startBtn.textContent = "Iniciar Ejercicio";
+    startBtn.style.background = "#38bdf8";
+    startBtn.style.color = "#0f172a";
+
+    // Guardar datos de la sesión
+    let finalAvg = currentBpmHistory.length > 0 
+      ? Math.round(currentBpmHistory.reduce((a,b)=>a+b,0)/currentBpmHistory.length)
+      : "--";
+
+    sessionsData.push({
+      num: sessionsData.length + 1,
+      time: timeSelect.value + " min",
+      rpm: rpmSelect.value + " RPM",
+      avgBpm: finalAvg
+    });
+
+    renderResultsTable();
+    if (completed) alert("¡Tiempo de ejercicio completado!");
+  }
+
+  function renderResultsTable() {
+    resultsCard.style.display = "block";
+    let html = `
+      <table>
+        <thead>
+          <tr>
+            <th>Sesión</th>
+            <th>Tiempo</th>
+            <th>Ritmo</th>
+            <th>Promedio BPM</th>
+          </tr>
+        </thead>
+        <tbody>
+    `;
+
+    sessionsData.forEach((s) => {
+      html += `
+        <tr>
+          <td><strong>#${s.num}</strong></td>
+          <td>${s.time}</td>
+          <td>${s.rpm}</td>
+          <td style="color:${s.num === 1 ? '#38bdf8' : '#f59e0b'}; font-weight:bold;">${s.avgBpm} BPM</td>
+        </tr>
+      `;
+    });
+
+    html += `</tbody></table>`;
+    tableContainer.innerHTML = html;
   }
 </script>
 </body>
