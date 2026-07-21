@@ -130,7 +130,7 @@
       opacity: 0.7;
     }
 
-    /* Métricas en 3 columnas (Actual, Media, Moda) */
+    /* Métricas (Actual, Media, Moda) */
     .metrics {
       display: grid;
       grid-template-columns: 1fr 1fr 1fr;
@@ -260,7 +260,6 @@
   let rawSignals = [];
   let currentBpmHistory = [];
   let lastBeat = Date.now();
-  let lastValidBpm = null;
 
   let sessionsData = []; 
 
@@ -302,7 +301,6 @@
     }
   }
 
-  // Función para calcular la Moda
   function calculateMode(arr) {
     if (arr.length === 0) return "--";
     const freqMap = {};
@@ -332,7 +330,6 @@
         active = true;
         currentBpmHistory = [];
         rawSignals = [];
-        lastValidBpm = null;
         
         startBtn.textContent = "Detener Ejercicio";
         startBtn.style.background = "#ef4444";
@@ -368,6 +365,7 @@
     timerDisplay.textContent = `${m < 10 ? '0':''}${m}:${s < 10 ? '0':''}${s}`;
   }
 
+  // ALGORITMO ORIGINAL REAL RESTAURADO
   function processFrame() {
     if (!active) return;
 
@@ -385,30 +383,19 @@
     let mean = rawSignals.reduce((a,b)=>a+b,0) / rawSignals.length;
     let now = Date.now();
 
-    if (avg > mean + 1.2 && (now - lastBeat) > 450) {
+    if (avg > mean + 1 && (now - lastBeat) > 400) {
       let bpm = Math.round(60000 / (now - lastBeat));
-      
-      if (bpm >= 45 && bpm <= 140) {
-        let isValid = false;
-        if (lastValidBpm === null) {
-          isValid = true;
-        } else if (Math.abs(bpm - lastValidBpm) <= 28) {
-          isValid = true;
-        }
+      if (bpm >= 40 && bpm <= 180) {
+        bpmVal.textContent = bpm;
+        currentBpmHistory.push(bpm);
+        
+        // Media
+        let sessionAvg = Math.round(currentBpmHistory.reduce((a,b)=>a+b,0) / currentBpmHistory.length);
+        avgVal.textContent = sessionAvg;
 
-        if (isValid) {
-          bpmVal.textContent = bpm;
-          currentBpmHistory.push(bpm);
-          lastValidBpm = bpm;
-
-          // Cálculo de Media
-          let sessionAvg = Math.round(currentBpmHistory.reduce((a,b)=>a+b,0) / currentBpmHistory.length);
-          avgVal.textContent = sessionAvg;
-
-          // Cálculo de Moda
-          let sessionMode = calculateMode(currentBpmHistory);
-          modeVal.textContent = sessionMode;
-        }
+        // Moda
+        let sessionMode = calculateMode(currentBpmHistory);
+        modeVal.textContent = sessionMode;
       }
       lastBeat = now;
     }
