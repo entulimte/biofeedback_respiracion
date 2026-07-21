@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Biofeedback Respiratorio</title>
+  <title>Biofeedback Cardiorrespiratorio</title>
   <style>
     body {
       font-family: sans-serif;
@@ -23,8 +23,8 @@
       max-width: 400px;
       text-align: center;
       margin-bottom: 15px;
+      box-sizing: border-box;
     }
-    /* Pelota / Pacer */
     .pacer-box {
       height: 160px;
       display: flex;
@@ -43,7 +43,6 @@
       position: absolute;
       font-weight: bold;
     }
-    /* Cámara donde pones el dedo */
     #videoPreview {
       width: 100px;
       height: 100px;
@@ -51,8 +50,8 @@
       border: 3px solid #38bdf8;
       object-fit: cover;
       background: #000;
+      margin: 0 auto;
     }
-    /* Lecturas BPM */
     .metrics {
       display: flex;
       justify-content: space-around;
@@ -62,26 +61,48 @@
     
     select, button {
       width: 100%;
-      padding: 12px;
+      padding: 10px;
       border-radius: 8px;
       border: none;
       font-weight: bold;
-      margin-top: 10px;
+      margin-top: 8px;
+      box-sizing: border-box;
     }
     select { background: #334155; color: #fff; }
-    button { background: #38bdf8; color: #000; cursor: pointer; }
+    button { background: #38bdf8; color: #000; cursor: pointer; font-size: 1.1rem; }
+    .timer-display { font-size: 1.4rem; font-weight: bold; color: #f59e0b; margin-top: 5px; }
   </style>
 </head>
 <body>
 
-  <!-- Pacer de la Pelota -->
+  <!-- Pacer y Tiempos -->
   <div class="card">
-    <label for="rpm">Ritmo RPM:</label>
+    <label>Duración de la Sesión:</label>
+    <select id="sessionTime">
+      <option value="1">1 Minuto</option>
+      <option value="2">2 Minutos</option>
+      <option value="3">3 Minutos</option>
+      <option value="5" selected>5 Minutos</option>
+      <option value="10">10 Minutos</option>
+      <option value="15">15 Minutos</option>
+      <option value="20">20 Minutos</option>
+      <option value="30">30 Minutos</option>
+    </select>
+
+    <label style="margin-top:10px; display:block;">Ritmo de Respiración (RPM):</label>
     <select id="rpm">
-      <option value="6" selected>6 RPM</option>
+      <option value="15">15 RPM (Respiración Normal)</option>
+      <option value="12">12 RPM</option>
+      <option value="10">10 RPM</option>
+      <option value="8">8 RPM</option>
+      <option value="6" selected>6 RPM (Coherencia)</option>
       <option value="5.5">5.5 RPM</option>
       <option value="5">5 RPM</option>
+      <option value="4.5">4.5 RPM</option>
+      <option value="4">4 RPM</option>
     </select>
+
+    <div class="timer-display" id="timeRemaining">--:--</div>
 
     <div class="pacer-box">
       <div id="circle" class="circle"></div>
@@ -89,7 +110,7 @@
     </div>
   </div>
 
-  <!-- Cámara y Pulso -->
+  <!-- Cámara y Lectura -->
   <div class="card">
     <video id="videoPreview" autoplay playsinline muted></video>
     <canvas id="canvas" width="50" height="50" style="display:none;"></canvas>
@@ -105,7 +126,7 @@
       </div>
     </div>
 
-    <button id="btn">Iniciar</button>
+    <button id="btn">Iniciar Sesión</button>
   </div>
 
 <script>
@@ -115,6 +136,8 @@
   let lastBeat = Date.now();
   let raw = [];
   let anim = null;
+  let timerInterval = null;
+  let timeLeft = 0;
 
   const video = document.getElementById('videoPreview');
   const canvas = document.getElementById('canvas');
@@ -125,6 +148,8 @@
   const avgVal = document.getElementById('avgVal');
   const btn = document.getElementById('btn');
   const rpmSelect = document.getElementById('rpm');
+  const timeSelect = document.getElementById('sessionTime');
+  const timeRemaining = document.getElementById('timeRemaining');
 
   btn.addEventListener('click', async () => {
     if (!active) {
@@ -137,10 +162,13 @@
         try { await track.applyConstraints({ advanced: [{ torch: true }] }); } catch(e){}
 
         active = true;
+        bpmHistory = [];
+        raw = [];
         btn.textContent = "Detener";
         btn.style.background = "#ef4444";
         btn.style.color = "#fff";
 
+        startTimer();
         runPacer();
         process();
       } catch (err) {
@@ -151,25 +179,51 @@
     }
   });
 
+  function startTimer() {
+    timeLeft = parseInt(timeSelect.value) * 60;
+    updateTimerDisplay();
+
+    timerInterval = setInterval(() => {
+      timeLeft--;
+      updateTimerDisplay();
+      if (timeLeft <= 0) {
+        stop();
+        alert("¡Sesión finalizada!");
+      }
+    }, 1000);
+  }
+
+  function updateTimerDisplay() {
+    let m = Math.floor(timeLeft / 60);
+    let s = timeLeft % 60;
+    timeRemaining.textContent = `${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
+  }
+
   function process() {
     if (!active) return;
     ctx.drawImage(video, 0, 0, 50, 50);
     const frame = ctx.getImageData(0, 0, 50, 50);
     let sum = 0;
-    for (let i = 0; i < frame.data.length; i += 4) sum += frame.data[i];
+    
+    // Canal rojo
+    for (let i = 0; i < frame.data.length; i += 4) {
+      sum += frame.data[i];
+    }
     let avg = sum / (frame.data.length / 4);
 
     raw.push(avg);
-    if (raw.length > 50) raw.shift();
-    let mean = raw.reduce((a,b)=>a+b,0)/raw.length;
-
+    if (raw.length > 30) raw.shift();
+    
+    let mean = raw.reduce((a,b) => a+b, 0) / raw.length;
     let now = Date.now();
-    if (avg > mean + 1 && (now - lastBeat) > 400) {
+
+    // Detección de pulso sensible
+    if (avg > mean + 0.4 && (now - lastBeat) > 380) {
       let bpm = Math.round(60000 / (now - lastBeat));
       if (bpm >= 40 && bpm <= 180) {
         bpmVal.textContent = bpm;
         bpmHistory.push(bpm);
-        avgVal.textContent = Math.round(bpmHistory.reduce((a,b)=>a+b,0) / bpmHistory.length);
+        avgVal.textContent = Math.round(bpmHistory.reduce((a,b) => a+b, 0) / bpmHistory.length);
       }
       lastBeat = now;
     }
@@ -201,10 +255,12 @@
   function stop() {
     active = false;
     if (track) track.stop();
+    clearInterval(timerInterval);
     cancelAnimationFrame(anim);
     circle.style.transform = "scale(1)";
     pacerText.textContent = "Listo";
-    btn.textContent = "Iniciar";
+    timeRemaining.textContent = "--:--";
+    btn.textContent = "Iniciar Sesión";
     btn.style.background = "#38bdf8";
     btn.style.color = "#000";
   }
