@@ -8,8 +8,8 @@
     :root {
       --bg: #0f172a;
       --card: #1e293b;
-      --accent1: #38bdf8; /* Azul para Intento 1 */
-      --accent2: #f59e0b; /* Naranja para Intento 2 */
+      --accent1: #38bdf8; /* Azul Intento 1 */
+      --accent2: #f59e0b; /* Naranja Intento 2 */
       --text: #f8fafc;
     }
     body {
@@ -127,7 +127,7 @@
       right: 5px;
       font-size: 0.65rem;
       font-weight: bold;
-      opacity: 0.6;
+      opacity: 0.65;
     }
 
     /* Métricas */
@@ -164,7 +164,7 @@
 
 <div class="container">
   
-  <!-- Configuración de Sesión -->
+  <!-- Configuración -->
   <div class="card" id="configCard">
     <h2>Configuración de Entrenamiento</h2>
     
@@ -323,6 +323,7 @@
     timerDisplay.textContent = `${m < 10 ? '0':''}${m}:${s < 10 ? '0':''}${s}`;
   }
 
+  // PROCESAMIENTO CON LA SENSIBILIDAD ORIGINAL RESTAURADA
   function processFrame() {
     if (!active) return;
 
@@ -335,12 +336,13 @@
     let avg = sum / (frame.data.length / 4);
 
     rawSignals.push(avg);
-    if (rawSignals.length > 80) rawSignals.shift();
+    if (rawSignals.length > 30) rawSignals.shift(); // Muestra corta original (30)
 
     let mean = rawSignals.reduce((a,b)=>a+b,0) / rawSignals.length;
     let now = Date.now();
 
-    if (avg > mean + 0.5 && (now - lastBeat) > 380) {
+    // Sensibilidad calibrada original (+0.4) y tiempo refractario de 380ms
+    if (avg > mean + 0.4 && (now - lastBeat) > 380) {
       let bpm = Math.round(60000 / (now - lastBeat));
       if (bpm >= 40 && bpm <= 180) {
         bpmVal.textContent = bpm;
@@ -360,7 +362,7 @@
     const h = canvas.height;
     ctx.clearRect(0, 0, w, h);
 
-    // Dibuja Zonas
+    // Zonas de fondo
     ctx.fillStyle = "rgba(239, 68, 68, 0.12)";
     ctx.fillRect(0, 0, w, h * 0.33);
 
@@ -386,7 +388,7 @@
     ctx.lineWidth = 2.5;
     ctx.beginPath();
 
-    let step = w / 80;
+    let step = w / 30;
     let min = Math.min(...rawSignals);
     let max = Math.max(...rawSignals);
     let range = (max - min) || 1;
