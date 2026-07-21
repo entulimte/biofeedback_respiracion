@@ -198,9 +198,9 @@
 
     <!-- Gráfica EEG con 3 Zonas de Color -->
     <div class="graph-container">
-      <span class="zone-label" style="top: 2px; color: #ef4444;">>100 BPM (Roja)</span>
-      <span class="zone-label" style="top: 40px; color: #f59e0b;">70-100 BPM (Amarilla)</span>
-      <span class="zone-label" style="bottom: 2px; color: #10b981;"><70 BPM (Verde)</span>
+      <span class="zone-label" style="top: 2px; color: #ef4444;">>100 BPM</span>
+      <span class="zone-label" style="top: 40px; color: #f59e0b;">70-100 BPM</span>
+      <span class="zone-label" style="bottom: 2px; color: #10b981;"><70 BPM</span>
       <canvas id="ecgCanvas" width="350" height="120"></canvas>
     </div>
 
@@ -253,7 +253,6 @@
   let animPacer = null;
   
   let rawSignals = [];
-  let smoothedSignals = [];
   let currentBpmHistory = [];
   let lastBeat = Date.now();
 
@@ -276,6 +275,27 @@
   const resultsCard = document.getElementById('resultsCard');
   const tableContainer = document.getElementById('tableContainer');
 
+  // Función para reproducir tono de fin
+  function playFinishSound() {
+    try {
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(880, audioCtx.currentTime); // Tono La (A5)
+      gain.gain.setValueAtTime(0.5, audioCtx.currentTime);
+      
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.8); // Duración 800ms
+    } catch(e) {
+      console.log("Audio Context no permitido:", e);
+    }
+  }
+
   startBtn.addEventListener('click', async () => {
     if (!active) {
       try {
@@ -289,7 +309,6 @@
         active = true;
         currentBpmHistory = [];
         rawSignals = [];
-        smoothedSignals = [];
         
         startBtn.textContent = "Detener Ejercicio";
         startBtn.style.background = "#ef4444";
@@ -325,7 +344,7 @@
     timerDisplay.textContent = `${m < 10 ? '0':''}${m}:${s < 10 ? '0':''}${s}`;
   }
 
-  // PROCESAMIENTO ESTABILIZADO Y FILTRADO
+  // ALGORITMO ORIGINAL RESTAURADO EXACTO
   function processFrame() {
     if (!active) return;
 
@@ -340,19 +359,12 @@
     rawSignals.push(avg);
     if (rawSignals.length > 50) rawSignals.shift();
 
-    // Filtro de suavizado exponencial
-    let lastSmooth = smoothedSignals.length > 0 ? smoothedSignals[smoothedSignals.length - 1] : avg;
-    let smoothedVal = lastSmooth + 0.25 * (avg - lastSmooth);
-    smoothedSignals.push(smoothedVal);
-    if (smoothedSignals.length > 50) smoothedSignals.shift();
-
-    let mean = smoothedSignals.reduce((a,b)=>a+b,0) / smoothedSignals.length;
+    let mean = rawSignals.reduce((a,b)=>a+b,0) / rawSignals.length;
     let now = Date.now();
 
-    // Umbral de detección con tiempo refractario seguro (500ms = Máximo 120 BPM)
-    if (smoothedVal > mean + 0.6 && (now - lastBeat) > 500) {
+    if (avg > mean + 1 && (now - lastBeat) > 400) {
       let bpm = Math.round(60000 / (now - lastBeat));
-      if (bpm >= 45 && bpm <= 140) {
+      if (bpm >= 40 && bpm <= 180) {
         bpmVal.textContent = bpm;
         currentBpmHistory.push(bpm);
         let sessionAvg = Math.round(currentBpmHistory.reduce((a,b)=>a+b,0) / currentBpmHistory.length);
@@ -387,7 +399,7 @@
     ctx.moveTo(0, h * 0.67); ctx.lineTo(w, h * 0.67);
     ctx.stroke();
 
-    if (smoothedSignals.length < 2) return;
+    if (rawSignals.length < 2) return;
 
     const currentSessionNum = sessionsData.length + 1;
     const lineColor = (currentSessionNum % 2 !== 0) ? "#38bdf8" : "#f59e0b";
@@ -397,12 +409,12 @@
     ctx.beginPath();
 
     let step = w / 50;
-    let min = Math.min(...smoothedSignals);
-    let max = Math.max(...smoothedSignals);
+    let min = Math.min(...rawSignals);
+    let max = Math.max(...rawSignals);
     let range = (max - min) || 1;
 
-    for (let i = 0; i < smoothedSignals.length; i++) {
-      let norm = (smoothedSignals[i] - min) / range;
+    for (let i = 0; i < rawSignals.length; i++) {
+      let norm = (rawSignals[i] - min) / range;
       let y = h - (norm * (h - 20) + 10);
       if (i === 0) ctx.moveTo(0, y);
       else ctx.lineTo(i * step, y);
@@ -466,7 +478,19 @@
     });
 
     renderResultsTable();
-    if (completed) alert("¡Tiempo de entrenamiento finalizado!");
+
+    if (completed) {
+      // Vibración
+      if ("vibrate" in navigator) {
+        navigator.vibrate([200, 100, 200, 100, 400]);
+      }
+      // Beep de sonido
+      playFinishSound();
+      
+      setTimeout(() => {
+        alert("¡Tiempo de entrenamiento finalizado!");
+      }, 100);
+    }
   }
 
   function renderResultsTable() {
