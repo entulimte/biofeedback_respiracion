@@ -3,12 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Biofeedback Cardiorrespiratorio</title>
+  <title>Biofeedback Cardiorrespiratorio - En Tu Límite</title>
   <style>
     :root {
       --bg: #0f172a;
       --card: #1e293b;
       --accent: #38bdf8;
+      --danger: #ef4444;
       --text: #f8fafc;
     }
     body {
@@ -39,18 +40,18 @@
     
     /* Pacer Visual */
     .pacer-container {
-      height: 180px;
+      height: 170px;
       display: flex;
       justify-content: center;
       align-items: center;
       position: relative;
     }
     .pacer-circle {
-      width: 60px;
-      height: 60px;
+      width: 50px;
+      height: 50px;
       border-radius: 50%;
       background: radial-gradient(circle, #38bdf8 0%, #0284c7 100%);
-      box-shadow: 0 0 20px rgba(56, 189, 248, 0.5);
+      box-shadow: 0 0 20px rgba(56, 189, 248, 0.6);
       transition: transform 0.1s linear;
     }
     .pacer-text {
@@ -58,18 +59,25 @@
       font-weight: bold;
       font-size: 1.1rem;
       pointer-events: none;
+      text-shadow: 0 1px 3px rgba(0,0,0,0.8);
     }
 
-    /* Video y Flash */
-    #video { display: none; }
-    .cam-preview {
-      width: 60px;
-      height: 60px;
+    /* Muestra de Cámara y Dedo */
+    .cam-box {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    #videoPreview {
+      width: 110px;
+      height: 110px;
       border-radius: 50%;
       border: 3px solid var(--accent);
-      margin: 0 auto 10px;
       object-fit: cover;
       background: #000;
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.3);
     }
 
     /* Métricas */
@@ -77,16 +85,17 @@
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 10px;
+      margin-top: 10px;
     }
     .metric-box {
       background: rgba(255,255,255,0.05);
       padding: 10px;
       border-radius: 8px;
     }
-    .metric-val { font-size: 1.6rem; font-weight: bold; color: var(--accent); }
+    .metric-val { font-size: 1.8rem; font-weight: bold; color: var(--accent); }
     .metric-label { font-size: 0.8rem; opacity: 0.8; }
 
-    /* Botones y Controles */
+    /* Controles */
     select, button {
       width: 100%;
       padding: 12px;
@@ -95,21 +104,20 @@
       font-weight: bold;
       font-size: 1rem;
       cursor: pointer;
-      margin-top: 5px;
     }
-    select { background: #334155; color: #fff; }
-    button { background: var(--accent); color: #0f172a; }
-    button:disabled { opacity: 0.5; }
+    select { background: #334155; color: #fff; margin-bottom: 10px; }
+    button { background: var(--accent); color: #0f172a; margin-top: 10px; }
 
-    canvas { width: 100%; height: 80px; background: #020617; border-radius: 8px; }
+    canvas { width: 100%; height: 80px; background: #020617; border-radius: 8px; margin-top: 10px; }
   </style>
 </head>
 <body>
 
 <div class="container">
+  <!-- Tarjeta Pacer de Respiración -->
   <div class="card">
     <h2>Pacer de Respiración</h2>
-    <label for="rpm">Ritmo (Respiraciones por Minuto):</label>
+    <label for="rpm">Frecuencia objetivo:</label>
     <select id="rpm">
       <option value="6" selected>6 RPM (Coherencia Cardíaca)</option>
       <option value="5.5">5.5 RPM</option>
@@ -123,13 +131,18 @@
     </div>
   </div>
 
+  <!-- Tarjeta Sensor de Pulso por Cámara -->
   <div class="card">
-    <h2>Sensor de Pulso (Cámara)</h2>
-    <p style="font-size:0.85rem; opacity:0.8;">Coloca suavemente la yema de tu dedo sobre la cámara trasera para cubrirla junto con el flash.</p>
+    <h2>Sensor de Pulso PPG</h2>
     
-    <video id="video" playsinline></video>
+    <div class="cam-box">
+      <!-- Muestra de la cámara donde se ve el dedo -->
+      <video id="videoPreview" autoplay playsinline muted></video>
+      <span style="font-size:0.8rem; opacity:0.8;">Cubre totalmente la cámara trasera y la luz con tu dedo.</span>
+    </div>
+
     <canvas id="camCanvas" width="50" height="50" style="display:none;"></canvas>
-    
+
     <div class="metrics">
       <div class="metric-box">
         <div id="bpmVal" class="metric-val">--</div>
@@ -141,7 +154,8 @@
       </div>
     </div>
 
-    <canvas id="ecgGraph" width="300" height="80" style="margin-top:10px;"></canvas>
+    <!-- Gráfica de pulso tipo ECG -->
+    <canvas id="ecgGraph" width="300" height="80"></canvas>
 
     <button id="startBtn">Iniciar Biofeedback</button>
   </div>
@@ -150,10 +164,10 @@
 <script>
   let streaming = false;
   let videoTrack = null;
-  let pacerInterval = null;
+  let pacerAnimation = null;
   let bpmHistory = [];
   
-  const video = document.getElementById('video');
+  const video = document.getElementById('videoPreview');
   const camCanvas = document.getElementById('camCanvas');
   const camCtx = camCanvas.getContext('2d');
   const ecgCanvas = document.getElementById('ecgGraph');
@@ -168,64 +182,77 @@
 
   let rawSignals = [];
   let lastBeatTime = Date.now();
-  let beats = [];
 
-  // Iniciar / Detener
   startBtn.addEventListener('click', async () => {
     if (!streaming) {
-      await startCamera();
-      startPacer();
-      startBtn.textContent = "Detener Sesión";
-      startBtn.style.background = "#ef4444";
-      streaming = true;
+      const ok = await startCamera();
+      if (ok) {
+        startPacer();
+        startBtn.textContent = "Detener Sesión";
+        startBtn.style.background = "var(--danger)";
+        streaming = true;
+      }
     } else {
       stopSession();
     }
   });
 
-  // Activar Cámara y Flash
   async function startCamera() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment", torch: true }
+        video: { 
+          facingMode: { exact: "environment" },
+          width: { ideal: 320 },
+          height: { ideal: 240 }
+        }
+      }).catch(async () => {
+        // Fallback por si la cámara "environment" estricta no abre en algunos navegadores
+        return await navigator.mediaDevices.getUserMedia({ video: true });
       });
+
       video.srcObject = stream;
       await video.play();
-      
+
       videoTrack = stream.getVideoTracks()[0];
-      // Intentar encender el flash si el cel lo soporta
+      
+      // Intentar encender la linterna / flash
       try {
-        await videoTrack.applyConstraints({ advanced: [{ torch: true }] });
+        const capabilities = videoTrack.getCapabilities();
+        if (capabilities.torch) {
+          await videoTrack.applyConstraints({ advanced: [{ torch: true }] });
+        }
       } catch (e) {
-        console.log("Flash no soportado directamente:", e);
+        console.log("No se pudo encender la linterna automáticamente:", e);
       }
 
-      requestAnimationFrame(processVideoFrame);
+      processVideoFrame();
+      return true;
     } catch (err) {
-      alert("No se pudo acceder a la cámara. Asegúrate de dar los permisos correspondientes: " + err);
+      alert("Error al abrir la cámara: Asegúrate de otorgar los permisos en tu navegador.");
+      return false;
     }
   }
 
-  // Procesamiento de Señal PPG (Color Rojo)
   function processVideoFrame() {
-    if (!streaming) return;
+    if (!streaming && video.paused) return;
 
     camCtx.drawImage(video, 0, 0, 50, 50);
     const frame = camCtx.getImageData(0, 0, 50, 50);
     let redSum = 0;
 
     for (let i = 0; i < frame.data.length; i += 4) {
-      redSum += frame.data[i]; // Canal Rojo
+      redSum += frame.data[i];
     }
 
     const redAvg = redSum / (frame.data.length / 4);
     detectPulse(redAvg);
     drawECG(redAvg);
 
-    requestAnimationFrame(processVideoFrame);
+    if (streaming) {
+      requestAnimationFrame(processVideoFrame);
+    }
   }
 
-  // Detección simple de picos para BPM
   function detectPulse(val) {
     rawSignals.push(val);
     if (rawSignals.length > 100) rawSignals.shift();
@@ -233,13 +260,13 @@
     const avg = rawSignals.reduce((a, b) => a + b, 0) / rawSignals.length;
     const now = Date.now();
 
-    if (val > avg + 1.5 && (now - lastBeatTime) > 450) { // Umbral de latido (~130 BPM max)
+    // Detección de pulso por pico de luz/rojo
+    if (val > avg + 0.8 && (now - lastBeatTime) > 400) {
       const currentBpm = Math.round(60000 / (now - lastBeatTime));
-      if (currentBpm >= 40 && currentBpm <= 180) {
+      if (currentBpm >= 45 && currentBpm <= 180) {
         bpmVal.textContent = currentBpm;
         bpmHistory.push(currentBpm);
         
-        // Promedio
         const avgBpm = Math.round(bpmHistory.reduce((a, b) => a + b, 0) / bpmHistory.length);
         avgBpmVal.textContent = avgBpm;
       }
@@ -247,7 +274,6 @@
     }
   }
 
-  // Gráfica visual ECG
   function drawECG(val) {
     ecgCtx.fillStyle = "#020617";
     ecgCtx.fillRect(0, 0, ecgCanvas.width, ecgCanvas.height);
@@ -256,47 +282,57 @@
     ecgCtx.lineWidth = 2;
     ecgCtx.beginPath();
     
-    const step = ecgCanvas.width / rawSignals.length;
+    const step = ecgCanvas.width / 100;
+    const min = Math.min(...rawSignals);
+    const max = Math.max(...rawSignals);
+    const range = (max - min) || 1;
+
     for (let i = 0; i < rawSignals.length; i++) {
-      const y = ecgCanvas.height - ((rawSignals[i] - 100) * 1.5);
+      const norm = (rawSignals[i] - min) / range;
+      const y = ecgCanvas.height - (norm * (ecgCanvas.height - 20) + 10);
       if (i === 0) ecgCtx.moveTo(0, y);
       else ecgCtx.lineTo(i * step, y);
     }
     ecgCtx.stroke();
   }
 
-  // Pacer de Respiración Visual
   function startPacer() {
     const rpm = parseFloat(rpmSelect.value);
     const cycleTimeMs = (60 / rpm) * 1000; 
-    let startTime = Date.now();
+    const startTime = Date.now();
 
-    pacerInterval = setInterval(() => {
+    function updatePacer() {
+      if (!streaming) return;
       const elapsed = (Date.now() - startTime) % cycleTimeMs;
       const progress = elapsed / cycleTimeMs;
 
       if (progress < 0.5) {
-        // Inhalar (0 a 1)
-        const scale = 1 + (progress * 2) * 1.8;
+        const scale = 1 + (progress * 2) * 1.6;
         pacerCircle.style.transform = `scale(${scale})`;
         pacerText.textContent = "Inhala...";
       } else {
-        // Exhalar (1 a 0)
-        const scale = 1 + ((1 - progress) * 2) * 1.8;
+        const scale = 1 + ((1 - progress) * 2) * 1.6;
         pacerCircle.style.transform = `scale(${scale})`;
         pacerText.textContent = "Exhala...";
       }
-    }, 50);
+      pacerAnimation = requestAnimationFrame(updatePacer);
+    }
+    updatePacer();
   }
 
   function stopSession() {
     streaming = false;
-    if (videoTrack) videoTrack.stop();
-    clearInterval(pacerInterval);
+    if (videoTrack) {
+      videoTrack.stop();
+    }
+    if (video.srcObject) {
+      video.srcObject.getTracks().forEach(track => track.stop());
+    }
+    cancelAnimationFrame(pacerAnimation);
     pacerCircle.style.transform = "scale(1)";
     pacerText.textContent = "Listo";
     startBtn.textContent = "Iniciar Biofeedback";
-    startBtn.style.background = "#38bdf8";
+    startBtn.style.background = "var(--accent)";
   }
 </script>
 </body>
