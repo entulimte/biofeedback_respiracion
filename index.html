@@ -281,6 +281,7 @@
   const maxDataPoints = 120;
   let lastBpm = 0;
   let audioCtx = null;
+  let lastPeakBeepTime = 0;
 
   let sessionsData = []; 
 
@@ -311,24 +312,26 @@
     }
   }
 
-  // Pitido dinámico: el intervalo entre sonidos se adapta al ritmo cardíaco actual (BPM)
-  function playDynamicBeep(currentBpm) {
+  // Pitido sincronizado directo al latido real detectado por la cámara
+  function playSynchronizedBeat(bpm) {
     if (!audioCtx || audioCtx.state !== 'running') return;
     
-    // Intervalo exacto en milisegundos basado en los BPM actuales (60,000 ms / BPM)
-    const intervalMs = (60000 / currentBpm);
+    // Evitar solapamientos anómalos pero permitir respuesta fluida al pulso real
     const now = performance.now();
-    
-    if (!window.lastBeepEpoch) window.lastBeepEpoch = 0;
-    if (now - window.lastBeepEpoch < (intervalMs - 40)) return; 
-    window.lastBeepEpoch = now;
+    if (now - lastPeakBeepTime < 300) return; 
+    lastPeakBeepTime = now;
 
     try {
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
       
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(1000, audioCtx.currentTime);
+      // Ajuste médico dinámico: tono más grave si está bajo, más agudo si está alto
+      let freq = 800;
+      if (bpm < 70) freq = 700;       // Zona verde (más grave)
+      else if (bpm > 100) freq = 1100; // Zona roja (más agudo)
+      
+      osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
       
       gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.05);
@@ -400,7 +403,7 @@
         rValues = [];
         times = [];
         lastBpm = 0;
-        window.lastBeepEpoch = 0;
+        lastPeakBeepTime = 0;
         fingerAlert.style.display = "none";
         
         startBtn.textContent = "Detener Ejercicio";
@@ -507,8 +510,8 @@
         bpmVal.textContent = lastBpm;
         currentBpmHistory.push(lastBpm);
 
-        // El sonido responde directamente a la velocidad del ritmo cardíaco real actual
-        playDynamicBeep(lastBpm);
+        // Disparar el sonido exactamente en el latido detectado
+        playSynchronizedBeat(lastBpm);
 
         let sessionAvg = Math.round(currentBpmHistory.reduce((a,b)=>a+b,0) / currentBpmHistory.length);
         avgVal.textContent = sessionAvg;
