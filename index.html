@@ -280,7 +280,7 @@
   let currentBpmHistory = [];
   const maxDataPoints = 120;
   let lastBpm = 0;
-  let isFingerCovered = false; // Bandera de control estricto para el dedo
+  let audioCtx = null; // Instancia global segura para el contexto de audio
 
   let sessionsData = []; 
 
@@ -302,31 +302,40 @@
   const tableContainer = document.getElementById('tableContainer');
   const fingerAlert = document.getElementById('fingerAlert');
 
-  // Pitido médico filtrado: solo suena si el dedo está cubriendo perfectamente la cámara
-  function playHeartbeatBeep() {
-    if (!isFingerCovered) return; // Silencio absoluto si el dedo no está bien colocado
+  // Inicializar o reanudar el contexto de audio con la interacción del usuario
+  function initAudio() {
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume();
+    }
+  }
+
+  // Pitido médico clínico puro y corto
+  function playBeep() {
+    if (!audioCtx || audioCtx.state !== 'running') return;
     try {
-      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
       
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(950, audioCtx.currentTime);
+      osc.frequency.setValueAtTime(1000, audioCtx.currentTime);
       
-      gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.08);
+      gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.05);
       
       osc.connect(gain);
       gain.connect(audioCtx.destination);
       
       osc.start();
-      osc.stop(audioCtx.currentTime + 0.08);
+      osc.stop(audioCtx.currentTime + 0.05);
     } catch(e){}
   }
 
   function playFinishSound() {
+    if (!audioCtx) return;
     try {
-      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
       
@@ -359,6 +368,8 @@
   }
 
   startBtn.addEventListener('click', async () => {
+    initAudio(); // Asegurar activación del audio con el toque del botón
+
     if (!active) {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
@@ -381,7 +392,6 @@
         rValues = [];
         times = [];
         lastBpm = 0;
-        isFingerCovered = false;
         fingerAlert.style.display = "none";
         
         startBtn.textContent = "Detener Ejercicio";
@@ -432,16 +442,14 @@
 
     const avgRed = totalRed / (data.length / 4);
 
-    // FILTRO ESTRICTO DE DEDO: Umbral de luz adecuado para evitar falsos positivos
-    if (avgRed < 70) {
-      isFingerCovered = false;
+    // Validación estricta de luz: si el dedo no está, pausar métricas y mostrar alerta
+    if (avgRed < 80) {
       fingerAlert.style.display = "block";
       bpmVal.textContent = "--";
       avgVal.textContent = "--";
       modeVal.textContent = "--";
-      return; // Detiene el procesamiento de picos si el dedo no está cubriendo
+      return; 
     } else {
-      isFingerCovered = true;
       fingerAlert.style.display = "none";
     }
 
@@ -461,8 +469,6 @@
   }
 
   function calculateBPM() {
-    if (!isFingerCovered) return;
-
     let peaks = [];
     let smoothValues = [];
     
@@ -493,8 +499,8 @@
         bpmVal.textContent = lastBpm;
         currentBpmHistory.push(lastBpm);
 
-        // Sonido de latido limpio y controlado
-        playHeartbeatBeep();
+        // Sonido de pitido exacto disparado únicamente al registrar un latido válido
+        playBeep();
 
         let sessionAvg = Math.round(currentBpmHistory.reduce((a,b)=>a+b,0) / currentBpmHistory.length);
         avgVal.textContent = sessionAvg;
@@ -588,7 +594,6 @@
 
   function stopSession(completed) {
     active = false;
-    isFingerCovered = false;
     clearInterval(frameInterval);
     clearInterval(timerInterval);
     cancelAnimationFrame(animPacer);
