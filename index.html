@@ -281,7 +281,7 @@
   const maxDataPoints = 120;
   let lastBpm = 0;
   let audioCtx = null;
-  let lastBeepTime = 0; // Control estricto de tiempo para separar los bips individualmente
+  let lastBeepEpoch = 0;
 
   let sessionsData = []; 
 
@@ -312,14 +312,13 @@
     }
   }
 
-  // Pitido individual "bip" limpio que solo suena separado si ocurre un nuevo latido
-  function playDistinctBeep() {
+  // Pitido estricto espaciado con un intervalo mínimo de 600ms para garantizar el espacio real "bip... bip... bip"
+  function playSpacedBeep() {
     if (!audioCtx || audioCtx.state !== 'running') return;
     
-    // Bloquear si no han pasado al menos 350ms desde el último bip (evita el sonido "prrrrr")
     const now = performance.now();
-    if (now - lastBeepTime < 350) return;
-    lastBeepTime = now;
+    if (now - lastBeepEpoch < 600) return; 
+    lastBeepEpoch = now;
 
     try {
       const osc = audioCtx.createOscillator();
@@ -398,7 +397,7 @@
         rValues = [];
         times = [];
         lastBpm = 0;
-        lastBeepTime = 0;
+        lastBeepEpoch = 0;
         fingerAlert.style.display = "none";
         
         startBtn.textContent = "Detener Ejercicio";
@@ -505,8 +504,8 @@
         bpmVal.textContent = lastBpm;
         currentBpmHistory.push(lastBpm);
 
-        // Dispara un único bip separado por cada latido válido detectado
-        playDistinctBeep();
+        // Dispara el sonido con separación real de espacio
+        playSpacedBeep();
 
         let sessionAvg = Math.round(currentBpmHistory.reduce((a,b)=>a+b,0) / currentBpmHistory.length);
         avgVal.textContent = sessionAvg;
