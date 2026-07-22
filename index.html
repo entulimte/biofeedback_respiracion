@@ -280,7 +280,8 @@
   let currentBpmHistory = [];
   const maxDataPoints = 120;
   let lastBpm = 0;
-  let audioCtx = null; // Instancia global segura para el contexto de audio
+  let audioCtx = null;
+  let lastBeepTime = 0; // Control estricto de tiempo para separar los bips individualmente
 
   let sessionsData = []; 
 
@@ -302,7 +303,6 @@
   const tableContainer = document.getElementById('tableContainer');
   const fingerAlert = document.getElementById('fingerAlert');
 
-  // Inicializar o reanudar el contexto de audio con la interacción del usuario
   function initAudio() {
     if (!audioCtx) {
       audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -312,9 +312,15 @@
     }
   }
 
-  // Pitido médico clínico puro y corto
-  function playBeep() {
+  // Pitido individual "bip" limpio que solo suena separado si ocurre un nuevo latido
+  function playDistinctBeep() {
     if (!audioCtx || audioCtx.state !== 'running') return;
+    
+    // Bloquear si no han pasado al menos 350ms desde el último bip (evita el sonido "prrrrr")
+    const now = performance.now();
+    if (now - lastBeepTime < 350) return;
+    lastBeepTime = now;
+
     try {
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
@@ -368,7 +374,7 @@
   }
 
   startBtn.addEventListener('click', async () => {
-    initAudio(); // Asegurar activación del audio con el toque del botón
+    initAudio();
 
     if (!active) {
       try {
@@ -392,6 +398,7 @@
         rValues = [];
         times = [];
         lastBpm = 0;
+        lastBeepTime = 0;
         fingerAlert.style.display = "none";
         
         startBtn.textContent = "Detener Ejercicio";
@@ -442,7 +449,6 @@
 
     const avgRed = totalRed / (data.length / 4);
 
-    // Validación estricta de luz: si el dedo no está, pausar métricas y mostrar alerta
     if (avgRed < 80) {
       fingerAlert.style.display = "block";
       bpmVal.textContent = "--";
@@ -499,8 +505,8 @@
         bpmVal.textContent = lastBpm;
         currentBpmHistory.push(lastBpm);
 
-        // Sonido de pitido exacto disparado únicamente al registrar un latido válido
-        playBeep();
+        // Dispara un único bip separado por cada latido válido detectado
+        playDistinctBeep();
 
         let sessionAvg = Math.round(currentBpmHistory.reduce((a,b)=>a+b,0) / currentBpmHistory.length);
         avgVal.textContent = sessionAvg;
