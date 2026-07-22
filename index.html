@@ -281,7 +281,6 @@
   const maxDataPoints = 120;
   let lastBpm = 0;
   let audioCtx = null;
-  let lastBeepEpoch = 0;
 
   let sessionsData = []; 
 
@@ -312,13 +311,17 @@
     }
   }
 
-  // Pitido estricto espaciado con un intervalo mínimo de 600ms para garantizar el espacio real "bip... bip... bip"
-  function playSpacedBeep() {
+  // Pitido dinámico: el intervalo entre sonidos se adapta al ritmo cardíaco actual (BPM)
+  function playDynamicBeep(currentBpm) {
     if (!audioCtx || audioCtx.state !== 'running') return;
     
+    // Intervalo exacto en milisegundos basado en los BPM actuales (60,000 ms / BPM)
+    const intervalMs = (60000 / currentBpm);
     const now = performance.now();
-    if (now - lastBeepEpoch < 600) return; 
-    lastBeepEpoch = now;
+    
+    if (!window.lastBeepEpoch) window.lastBeepEpoch = 0;
+    if (now - window.lastBeepEpoch < (intervalMs - 40)) return; 
+    window.lastBeepEpoch = now;
 
     try {
       const osc = audioCtx.createOscillator();
@@ -397,7 +400,7 @@
         rValues = [];
         times = [];
         lastBpm = 0;
-        lastBeepEpoch = 0;
+        window.lastBeepEpoch = 0;
         fingerAlert.style.display = "none";
         
         startBtn.textContent = "Detener Ejercicio";
@@ -504,8 +507,8 @@
         bpmVal.textContent = lastBpm;
         currentBpmHistory.push(lastBpm);
 
-        // Dispara el sonido con separación real de espacio
-        playSpacedBeep();
+        // El sonido responde directamente a la velocidad del ritmo cardíaco real actual
+        playDynamicBeep(lastBpm);
 
         let sessionAvg = Math.round(currentBpmHistory.reduce((a,b)=>a+b,0) / currentBpmHistory.length);
         avgVal.textContent = sessionAvg;
