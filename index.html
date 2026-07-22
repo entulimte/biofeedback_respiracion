@@ -335,12 +335,8 @@
         videoTrack = stream.getVideoTracks()[0];
 
         setTimeout(async () => {
-          try { 
-            await videoTrack.applyConstraints({ advanced: [{ torch: true }] }); 
-          } catch (e) {
-            console.warn("Torch error:", e);
-          }
-        }, 500);
+          try { await videoTrack.applyConstraints({ advanced: [{ torch: true }] }); } catch (e) {}
+        }, 100);
 
         active = true;
         currentBpmHistory = [];
@@ -533,12 +529,7 @@
     clearInterval(timerInterval);
     cancelAnimationFrame(animPacer);
 
-    if (videoTrack) { 
-      try { 
-        videoTrack.applyConstraints({ advanced: [{ torch: false }] });
-        videoTrack.stop(); 
-      } catch(e){} 
-    }
+    if (videoTrack) { try { videoTrack.stop(); } catch(e){} }
     if (video.srcObject) { video.srcObject.getTracks().forEach(t => t.stop()); }
     video.srcObject = null;
 
