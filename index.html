@@ -1,3 +1,238 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Biofeedback Cardiorrespiratorio</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --accent1: #38bdf8; /* Azul Intento 1 */
+      --accent2: #f59e0b; /* Naranja Intento 2 */
+      --text: #f8fafc;
+    }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .container {
+      max-width: 450px;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .card {
+      background: var(--card);
+      padding: 15px;
+      border-radius: 12px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+      text-align: center;
+      box-sizing: border-box;
+    }
+    h2 { margin: 0 0 10px 0; font-size: 1.1rem; color: var(--accent1); }
+    
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      text-align: left;
+      gap: 4px;
+      margin-bottom: 10px;
+    }
+    label { font-size: 0.85rem; opacity: 0.9; }
+    select, button {
+      width: 100%;
+      padding: 10px;
+      border-radius: 8px;
+      border: none;
+      font-weight: bold;
+      font-size: 0.95rem;
+      box-sizing: border-box;
+    }
+    select { background: #334155; color: #fff; }
+    button { background: var(--accent1); color: #0f172a; cursor: pointer; margin-top: 5px; }
+
+    /* Pacer Respiratorio */
+    .pacer-container {
+      height: 140px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      position: relative;
+    }
+    .pacer-circle {
+      width: 45px;
+      height: 45px;
+      border-radius: 50%;
+      background: radial-gradient(circle, #38bdf8 0%, #0284c7 100%);
+      box-shadow: 0 0 20px rgba(56, 189, 248, 0.5);
+      transition: transform 0.1s linear;
+    }
+    .pacer-text {
+      position: absolute;
+      font-weight: bold;
+      font-size: 1.1rem;
+      text-shadow: 0 1px 4px rgba(0,0,0,0.9);
+      pointer-events: none;
+    }
+
+    /* Cam y Cronómetro */
+    .cam-box {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 15px;
+      margin-bottom: 10px;
+    }
+    #videoPreview {
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      border: 2px solid var(--accent1);
+      object-fit: cover;
+      background: #000;
+    }
+    .timer-badge {
+      font-size: 1.5rem;
+      font-weight: bold;
+      color: var(--accent2);
+      background: rgba(0,0,0,0.4);
+      padding: 6px 15px;
+      border-radius: 8px;
+      border: 1px solid #334155;
+    }
+
+    /* Gráfico EEG con 3 Zonas */
+    .graph-container {
+      position: relative;
+      width: 100%;
+      height: 120px;
+      background: #020617;
+      border-radius: 8px;
+      overflow: hidden;
+      margin-top: 8px;
+      border: 1px solid #334155;
+    }
+    canvas#ecgCanvas { width: 100%; height: 100%; display: block; }
+
+    .zone-label {
+      position: absolute;
+      right: 5px;
+      font-size: 0.65rem;
+      font-weight: bold;
+      opacity: 0.7;
+    }
+
+    /* Métricas */
+    .metrics {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 6px;
+      margin-top: 10px;
+    }
+    .metric-box {
+      background: rgba(255,255,255,0.05);
+      padding: 8px 4px;
+      border-radius: 8px;
+    }
+    .metric-val { font-size: 1.3rem; font-weight: bold; color: var(--accent1); }
+    .metric-label { font-size: 0.7rem; opacity: 0.8; }
+
+    /* Tabla Comparativa */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      font-size: 0.8rem;
+    }
+    th, td {
+      border: 1px solid #334155;
+      padding: 6px 2px;
+      text-align: center;
+    }
+    th { background: rgba(255,255,255,0.05); color: var(--accent1); }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  
+  <!-- Configuración -->
+  <div class="card" id="configCard">
+    <h2>Configuración de Entrenamiento</h2>
+    
+    <div class="form-group">
+      <label for="timeSelect">Tiempo del Ejercicio (Minutos):</label>
+      <select id="timeSelect">
+        <!-- Generado de 1 a 30 consecutivo -->
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label for="rpmSelect">Ritmo de Respiración por Minuto:</label>
+      <select id="rpmSelect">
+        <option value="15" selected>Respiración Normal</option>
+        <!-- Generado de 1 a 15 consecutivo -->
+      </select>
+    </div>
+  </div>
+
+  <!-- Pacer y Sensor -->
+  <div class="card">
+    <div class="cam-box">
+      <video id="videoPreview" autoplay playsinline muted></video>
+      <div class="timer-badge" id="timerDisplay">00:00</div>
+    </div>
+
+    <div class="pacer-container">
+      <div id="pacerCircle" class="pacer-circle"></div>
+      <div id="pacerText" class="pacer-text">Listo</div>
+    </div>
+
+    <!-- Gráfica EEG con 3 Zonas de Color -->
+    <div class="graph-container">
+      <span class="zone-label" style="top: 2px; color: #ef4444;">>100 BPM</span>
+      <span class="zone-label" style="top: 40px; color: #f59e0b;">70-100 BPM</span>
+      <span class="zone-label" style="bottom: 2px; color: #10b981;"><70 BPM</span>
+      <canvas id="ecgCanvas" width="350" height="120"></canvas>
+    </div>
+
+    <!-- Métricas -->
+    <div class="metrics">
+      <div class="metric-box">
+        <div id="bpmVal" class="metric-val">--</div>
+        <div class="metric-label">Actual</div>
+      </div>
+      <div class="metric-box">
+        <div id="avgVal" class="metric-val">--</div>
+        <div class="metric-label">Media</div>
+      </div>
+      <div class="metric-box">
+        <div id="modeVal" class="metric-val">--</div>
+        <div class="metric-label">Moda</div>
+      </div>
+    </div>
+
+    <button id="startBtn">Iniciar Ejercicio</button>
+  </div>
+
+  <!-- Resumen y Cuadro Comparativo -->
+  <div class="card" id="resultsCard" style="display:none;">
+    <h2>Cuadro Comparativo</h2>
+    <div id="tableContainer"></div>
+  </div>
+
+</div>
+
+<canvas id="analyzerCanvas" width="100" height="100" style="display:none;"></canvas>
+
 <script>
   // Populate Tiempo 1 a 30
   const timeSelect = document.getElementById('timeSelect');
@@ -25,7 +260,7 @@
   let timeLeft = 0;
   let animPacer = null;
   
-  // PARÁMETROS DE MEDICIÓN
+  // PARÁMETROS DE MEDICIÓN SOLICITADOS
   let rValues = [];
   let times = [];
   let currentBpmHistory = [];
@@ -88,52 +323,24 @@
   startBtn.addEventListener('click', async () => {
     if (!active) {
       try {
-        // CORRECCIÓN: Solicitud robusta asegurando la cámara trasera y preparando el flujo de antorcha
-        const constraints = {
+        const stream = await navigator.mediaDevices.getUserMedia({
           video: {
-            facingMode: { exact: "environment" },
+            facingMode: "environment",
             width: { ideal: 300 },
             height: { ideal: 300 }
           }
-        };
-
-        let stream;
-        try {
-          stream = await navigator.mediaDevices.getUserMedia(constraints);
-        } catch (err) {
-          // Fallback por si el dispositivo no soporta 'exact: environment'
-          stream = await navigator.mediaDevices.getUserMedia({
-            video: {
-              facingMode: "environment",
-              width: { ideal: 300 },
-              height: { ideal: 300 }
-            }
-          });
-        }
+        });
 
         video.srcObject = stream;
         videoTrack = stream.getVideoTracks()[0];
 
-        // CORRECCIÓN: Activación directa y segura de la linterna (torch) con verificación de capacidades
-        const capabilities = videoTrack.getCapabilities ? videoTrack.getCapabilities() : {};
-        if (capabilities.torch) {
-          try {
-            await videoTrack.applyConstraints({
-              advanced: [{ torch: true }]
-            });
-          } catch (err) {
-            console.warn("No se pudo encender el flash mediante applyConstraints:", err);
+        setTimeout(async () => {
+          try { 
+            await videoTrack.applyConstraints({ advanced: [{ torch: true }] }); 
+          } catch (e) {
+            console.warn("Torch error:", e);
           }
-        } else {
-          // Fallback para navegadores que permiten aplicar torch directamente sin getCapabilities previo
-          setTimeout(async () => {
-            try {
-              await videoTrack.applyConstraints({ advanced: [{ torch: true }] });
-            } catch (e) {
-              console.warn("Fallback torch error:", e);
-            }
-          }, 300);
-        }
+        }, 500);
 
         active = true;
         currentBpmHistory = [];
@@ -149,7 +356,7 @@
         startPacer();
         frameInterval = setInterval(processFrame, 1000 / 30);
       } catch (err) {
-        alert("Error al acceder a la cámara trasera o flash: " + err);
+        alert("Error al acceder a la cámara trasera: " + err);
       }
     } else {
       stopSession(false);
@@ -175,7 +382,7 @@
     timerDisplay.textContent = `${m < 10 ? '0':''}${m}:${s < 10 ? '0':''}${s}`;
   }
 
-  // --- ALGORITMO DE PROCESAMIENTO ---
+  // --- ALGORITMO INTEGRADO DE TUS PARÁMETROS ---
   function processFrame() {
     if (!active || video.paused || video.ended) return;
 
@@ -328,7 +535,6 @@
 
     if (videoTrack) { 
       try { 
-        // Apagar la antorcha al detener la sesión
         videoTrack.applyConstraints({ advanced: [{ torch: false }] });
         videoTrack.stop(); 
       } catch(e){} 
@@ -405,3 +611,5 @@
     tableContainer.innerHTML = html;
   }
 </script>
+</body>
+</html>
