@@ -109,6 +109,19 @@
       border: 1px solid #334155;
     }
 
+    /* Alerta de Dedo */
+    #fingerAlert {
+      background: rgba(239, 68, 68, 0.2);
+      color: #ef4444;
+      border: 1px solid #ef4444;
+      padding: 6px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: bold;
+      margin-bottom: 8px;
+      display: none;
+    }
+
     /* Gráfico EEG con 3 Zonas */
     .graph-container {
       position: relative;
@@ -186,6 +199,8 @@
 
   <!-- Pacer y Sensor -->
   <div class="card">
+    <div id="fingerAlert">⚠️ Coloca bien el dedo sobre la cámara y el flash</div>
+    
     <div class="cam-box">
       <video id="videoPreview" autoplay playsinline muted></video>
       <div class="timer-badge" id="timerDisplay">00:00</div>
@@ -260,7 +275,6 @@
   let timeLeft = 0;
   let animPacer = null;
   
-  // PARÁMETROS DE MEDICIÓN SOLICITADOS
   let rValues = [];
   let times = [];
   let currentBpmHistory = [];
@@ -285,6 +299,29 @@
   const timerDisplay = document.getElementById('timerDisplay');
   const resultsCard = document.getElementById('resultsCard');
   const tableContainer = document.getElementById('tableContainer');
+  const fingerAlert = document.getElementById('fingerAlert');
+
+  // Sonido de pitido médico estilo monitor/oxímetro por cada latido
+  function playHeartbeatBeep() {
+    try {
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      
+      osc.type = 'sine';
+      // Frecuencia aguda limpia similar a equipo médico
+      osc.frequency.setValueAtTime(950, audioCtx.currentTime);
+      
+      gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.08);
+      
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.08);
+    } catch(e){}
+  }
 
   function playFinishSound() {
     try {
@@ -294,7 +331,7 @@
       
       osc.type = 'sine';
       osc.frequency.setValueAtTime(880, audioCtx.currentTime);
-      gain.gain.setValueAtTime(0.5, audioCtx.currentTime);
+      gain.gain.setValueAtTime(0.4, audioCtx.currentTime);
       
       osc.connect(gain);
       gain.connect(audioCtx.destination);
@@ -343,6 +380,7 @@
         rValues = [];
         times = [];
         lastBpm = 0;
+        fingerAlert.style.display = "none";
         
         startBtn.textContent = "Detener Ejercicio";
         startBtn.style.background = "#ef4444";
@@ -378,7 +416,6 @@
     timerDisplay.textContent = `${m < 10 ? '0':''}${m}:${s < 10 ? '0':''}${s}`;
   }
 
-  // --- ALGORITMO INTEGRADO DE TUS PARÁMETROS ---
   function processFrame() {
     if (!active || video.paused || video.ended) return;
 
@@ -392,6 +429,14 @@
     }
 
     const avgRed = totalRed / (data.length / 4);
+
+    // CONTROL DE AUDIO / LUZ: Verificar si el dedo está cubriendo la cámara (Umbral de luz roja baja)
+    if (avgRed < 50) {
+      fingerAlert.style.display = "block";
+    } else {
+      fingerAlert.style.display = "none";
+    }
+
     rValues.push(avgRed);
     times.push(performance.now());
 
@@ -411,7 +456,6 @@
     let peaks = [];
     let smoothValues = [];
     
-    // Suavizado de 7 puntos
     for (let i = 3; i < rValues.length - 3; i++) {
       let val = (rValues[i-3] + rValues[i-2] + rValues[i-1] + rValues[i] + rValues[i+1] + rValues[i+2] + rValues[i+3]) / 7;
       smoothValues.push({val: val, time: times[i]});
@@ -432,13 +476,15 @@
       const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
       let bpm = Math.round(60000 / avgInterval);
 
-      // Rango de 50 a 150 BPM con Amortiguación al 10%
       if (bpm >= 50 && bpm <= 150) {
         if (lastBpm === 0) lastBpm = bpm;
         lastBpm = Math.round(lastBpm * 0.9 + bpm * 0.1);
         
         bpmVal.textContent = lastBpm;
         currentBpmHistory.push(lastBpm);
+
+        // Reproducir pitido médico por cada latido detectado de forma natural
+        playHeartbeatBeep();
 
         let sessionAvg = Math.round(currentBpmHistory.reduce((a,b)=>a+b,0) / currentBpmHistory.length);
         avgVal.textContent = sessionAvg;
@@ -480,8 +526,6 @@
     ctx.beginPath();
 
     let step = w / maxDataPoints;
-
-    // Mapeo absoluto basado en rangos de BPM para respetar las zonas fijas
     const minBpmVal = 50;
     const maxBpmVal = 120;
 
@@ -538,7 +582,12 @@
     clearInterval(timerInterval);
     cancelAnimationFrame(animPacer);
 
-    if (videoTrack) { try { videoTrack.stop(); } catch(e){} }
+    if (videoTrack) { 
+      try { 
+        videoTrack.applyConstraints({ advanced: [{ torch: false }] });
+        videoTrack.stop(); 
+      } catch(e){} 
+    }
     if (video.srcObject) { video.srcObject.getTracks().forEach(t => t.stop()); }
     video.srcObject = null;
 
@@ -547,6 +596,7 @@
     startBtn.textContent = "Iniciar Ejercicio";
     startBtn.style.background = "#38bdf8";
     startBtn.style.color = "#0f172a";
+    fingerAlert.style.display = "none";
 
     let finalAvg = currentBpmHistory.length > 0 
       ? Math.round(currentBpmHistory.reduce((a,b)=>a+b,0)/currentBpmHistory.length)
