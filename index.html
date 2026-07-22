@@ -480,13 +480,22 @@
     ctx.beginPath();
 
     let step = w / maxDataPoints;
-    let min = Math.min(...rValues);
-    let max = Math.max(...rValues);
-    let range = (max - min) || 1;
+
+    // Mapeo absoluto basado en rangos de BPM para respetar las zonas fijas
+    const minBpmVal = 50;
+    const maxBpmVal = 120;
 
     for (let i = 0; i < rValues.length; i++) {
-      let norm = (rValues[i] - min) / range;
-      let y = h - (norm * (h - 20) + 10);
+      let localBpm = lastBpm || 75; 
+      
+      let normalizedBpm = (localBpm - minBpmVal) / (maxBpmVal - minBpmVal);
+      normalizedBpm = Math.max(0, Math.min(1, normalizedBpm));
+      
+      let waveOffset = (rValues[i] - rValues.reduce((a,b)=>a+b,0)/rValues.length);
+      let y = (h - (normalizedBpm * h)) + (waveOffset * 0.5);
+      
+      y = Math.max(5, Math.min(h - 5, y));
+
       if (i === 0) ctx.moveTo(0, y);
       else ctx.lineTo(i * step, y);
     }
