@@ -312,7 +312,6 @@
     }
   }
 
-  // Pitido sincronizado directo al latido real detectado por la cámara
   function playSynchronizedBeat(bpm) {
     if (!audioCtx || audioCtx.state !== 'running') return;
     
@@ -326,8 +325,8 @@
       
       osc.type = 'sine';
       let freq = 800;
-      if (bpm < 70) freq = 700;        // Zona verde (más grave)
-      else if (bpm > 100) freq = 1100; // Zona roja (más agudo)
+      if (bpm < 70) freq = 700;
+      else if (bpm > 100) freq = 1100;
       
       osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
       
@@ -424,10 +423,13 @@
     updateTimerText();
 
     timerInterval = setInterval(() => {
-      timeLeft--;
-      updateTimerText();
-      if (timeLeft <= 0) {
-        stopSession(true);
+      // Forzar verificación estricta de que el elemento de alerta NO esté visible (dedo colocado correctamente)
+      if (window.getComputedStyle(fingerAlert).display === "none") {
+        timeLeft--;
+        updateTimerText();
+        if (timeLeft <= 0) {
+          stopSession(true);
+        }
       }
     }, 1000);
   }
@@ -573,11 +575,22 @@
   function startPacer() {
     let rpmVal = rpmSelect.value === "15" ? 15 : parseFloat(rpmSelect.value);
     const totalCycleMs = (60 / rpmVal) * 1000;
-    const start = Date.now();
+    
+    let lastTime = Date.now();
+    let accumulatedMs = 0;
 
     function step() {
       if (!active) return;
-      let elapsed = (Date.now() - start) % totalCycleMs;
+      
+      const now = Date.now();
+      const delta = now - lastTime;
+      lastTime = now;
+
+      if (window.getComputedStyle(fingerAlert).display === "none") {
+        accumulatedMs += delta;
+      }
+
+      let elapsed = accumulatedMs % totalCycleMs;
       let prog = elapsed / totalCycleMs;
 
       if (prog < 0.4) {
@@ -629,7 +642,6 @@
     let finalMode = calculateMode(currentBpmHistory);
     let selectedRpmText = rpmSelect.options[rpmSelect.selectedIndex].text;
 
-    // Calcular porcentajes de tiempo en cada zona de semáforo
     let redCount = 0, orangeCount = 0, greenCount = 0;
     currentBpmHistory.forEach(bpm => {
       if (bpm > 100) redCount++;
