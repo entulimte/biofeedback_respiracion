@@ -163,7 +163,7 @@
       width: 100%;
       border-collapse: collapse;
       margin-top: 10px;
-      font-size: 0.8rem;
+      font-size: 0.75rem;
     }
     th, td {
       border: 1px solid #334155;
@@ -316,7 +316,6 @@
   function playSynchronizedBeat(bpm) {
     if (!audioCtx || audioCtx.state !== 'running') return;
     
-    // Evitar solapamientos anómalos pero permitir respuesta fluida al pulso real
     const now = performance.now();
     if (now - lastPeakBeepTime < 300) return; 
     lastPeakBeepTime = now;
@@ -326,9 +325,8 @@
       const gain = audioCtx.createGain();
       
       osc.type = 'sine';
-      // Ajuste médico dinámico: tono más grave si está bajo, más agudo si está alto
       let freq = 800;
-      if (bpm < 70) freq = 700;       // Zona verde (más grave)
+      if (bpm < 70) freq = 700;        // Zona verde (más grave)
       else if (bpm > 100) freq = 1100; // Zona roja (más agudo)
       
       osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
@@ -510,7 +508,6 @@
         bpmVal.textContent = lastBpm;
         currentBpmHistory.push(lastBpm);
 
-        // Disparar el sonido exactamente en el latido detectado
         playSynchronizedBeat(lastBpm);
 
         let sessionAvg = Math.round(currentBpmHistory.reduce((a,b)=>a+b,0) / currentBpmHistory.length);
@@ -632,12 +629,28 @@
     let finalMode = calculateMode(currentBpmHistory);
     let selectedRpmText = rpmSelect.options[rpmSelect.selectedIndex].text;
 
+    // Calcular porcentajes de tiempo en cada zona de semáforo
+    let redCount = 0, orangeCount = 0, greenCount = 0;
+    currentBpmHistory.forEach(bpm => {
+      if (bpm > 100) redCount++;
+      else if (bpm >= 70 && bpm <= 100) orangeCount++;
+      else greenCount++;
+    });
+
+    let totalPoints = currentBpmHistory.length;
+    let redPct = totalPoints > 0 ? Math.round((redCount / totalPoints) * 100) : 0;
+    let orangePct = totalPoints > 0 ? Math.round((orangeCount / totalPoints) * 100) : 0;
+    let greenPct = totalPoints > 0 ? 100 - (redPct + orangePct) : 0;
+
     sessionsData.push({
       num: sessionsData.length + 1,
       time: timeSelect.value + " min",
       rpm: selectedRpmText,
       avgBpm: finalAvg,
-      modeBpm: finalMode
+      modeBpm: finalMode,
+      redPct: redPct,
+      orangePct: orangePct,
+      greenPct: greenPct
     });
 
     renderResultsTable();
@@ -665,6 +678,7 @@
             <th>Ritmo</th>
             <th>Media</th>
             <th>Moda</th>
+            <th>Zonas (%)</th>
           </tr>
         </thead>
         <tbody>
@@ -675,11 +689,16 @@
       let color = isFirst ? '#38bdf8' : '#f59e0b';
       html += `
         <tr>
-          <td style="color:${color}; font-weight:bold;">#${s.num} ${isFirst ? '(Azul)' : '(Naranja)'}</td>
+          <td style="color:${color}; font-weight:bold;">#${s.num}</td>
           <td>${s.time}</td>
           <td>${s.rpm}</td>
-          <td style="color:${color}; font-weight:bold;">${s.avgBpm} BPM</td>
-          <td style="color:${color}; font-weight:bold;">${s.modeBpm} BPM</td>
+          <td style="color:${color}; font-weight:bold;">${s.avgBpm}</td>
+          <td style="color:${color}; font-weight:bold;">${s.modeBpm}</td>
+          <td style="text-align:left; padding: 4px 6px;">
+            <span style="color:#ef4444; font-weight:bold;">🔴 ${s.redPct}%</span><br>
+            <span style="color:#f59e0b; font-weight:bold;">🟠 ${s.orangePct}%</span><br>
+            <span style="color:#10b981; font-weight:bold;">🟢 ${s.greenPct}%</span>
+          </td>
         </tr>
       `;
     });
